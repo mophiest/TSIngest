@@ -18,6 +18,7 @@ TSINGEST_MP4_CONCURRENCY="${TSINGEST_MP4_CONCURRENCY:-2}"
 TSINGEST_COOKIE_SECURE="${TSINGEST_COOKIE_SECURE:-false}"
 TSINGEST_PUBLIC_URL="${TSINGEST_PUBLIC_URL:-}"
 TSINGEST_DOCKER_SUBNET="${TSINGEST_DOCKER_SUBNET:-172.31.240.0/24}"
+TSINGEST_SECCOMP_PROFILE="${TSINGEST_SECCOMP_PROFILE:-unconfined}"
 
 usage() {
   cat <<'EOF'
@@ -39,6 +40,7 @@ Options:
   --cookie-secure true|false      Secure cookie flag behind HTTPS. Default: false
   --public-url URL                Public URL behind reverse proxy
   --docker-subnet CIDR            Compose bridge subnet. Default: 172.31.240.0/24
+  --seccomp-profile VALUE         Worker seccomp profile. Default: unconfined
   --non-interactive               Do not prompt; generate missing secrets
   --force                         Overwrite existing env file
   -h, --help                      Show this help
@@ -65,6 +67,7 @@ while [ "$#" -gt 0 ]; do
     --cookie-secure) TSINGEST_COOKIE_SECURE="$2"; shift 2 ;;
     --public-url) TSINGEST_PUBLIC_URL="$2"; shift 2 ;;
     --docker-subnet) TSINGEST_DOCKER_SUBNET="$2"; shift 2 ;;
+    --seccomp-profile) TSINGEST_SECCOMP_PROFILE="$2"; shift 2 ;;
     --non-interactive) NON_INTERACTIVE="true"; shift ;;
     --force) FORCE="true"; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -127,6 +130,7 @@ TSINGEST_MP4_CONCURRENCY="$(prompt_value TSINGEST_MP4_CONCURRENCY "$TSINGEST_MP4
 TSINGEST_COOKIE_SECURE="$(prompt_value TSINGEST_COOKIE_SECURE "$TSINGEST_COOKIE_SECURE" "Secure cookie true/false")"
 TSINGEST_PUBLIC_URL="$(prompt_value TSINGEST_PUBLIC_URL "$TSINGEST_PUBLIC_URL" "Public URL, empty for LAN HTTP")"
 TSINGEST_DOCKER_SUBNET="$(prompt_value TSINGEST_DOCKER_SUBNET "$TSINGEST_DOCKER_SUBNET" "Docker bridge subnet")"
+TSINGEST_SECCOMP_PROFILE="$(prompt_value TSINGEST_SECCOMP_PROFILE "$TSINGEST_SECCOMP_PROFILE" "Worker seccomp profile")"
 
 case "$TSINGEST_COOKIE_SECURE" in
   true|false) ;;
@@ -167,6 +171,7 @@ TSINGEST_MP4_CONCURRENCY=$TSINGEST_MP4_CONCURRENCY
 TSINGEST_COOKIE_SECURE=$TSINGEST_COOKIE_SECURE
 TSINGEST_PUBLIC_URL=$TSINGEST_PUBLIC_URL
 TSINGEST_DOCKER_SUBNET=$TSINGEST_DOCKER_SUBNET
+TSINGEST_SECCOMP_PROFILE=$TSINGEST_SECCOMP_PROFILE
 EOF
 mv "$tmp_file" "$ENV_FILE"
 

@@ -56,6 +56,14 @@ TSINGEST_DOCKER_SUBNET=172.31.240.0/24
 
 如果仍冲突，可以换成生产网络中未使用的小网段，例如 `172.30.240.0/24` 或 `10.250.0.0/24`。
 
+如果 FFmpeg/SRT 报 `pthread_create failed with 1`，通常是 Docker seccomp 与系统线程创建兼容性问题。默认 `.env` 使用：
+
+```env
+TSINGEST_SECCOMP_PROFILE=unconfined
+```
+
+该配置只应用于运行 FFmpeg 的 `worker` 和测试发送容器。升级 Docker/libseccomp 后，如需收紧可改为 `default` 并重新 `docker compose up -d`。
+
 ## 离线镜像包部署
 
 如果生产环境不能联网，或者希望在开发机打好镜像再带到现场：
