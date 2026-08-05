@@ -101,3 +101,9 @@ services:
 
 volumes:
   postgres-data:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${TSINGEST_DOCKER_SUBNET:-172.31.240.0/24}

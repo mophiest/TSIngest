@@ -17,6 +17,7 @@ TSINGEST_MAX_ACTIVE_RECORDINGS="${TSINGEST_MAX_ACTIVE_RECORDINGS:-64}"
 TSINGEST_MP4_CONCURRENCY="${TSINGEST_MP4_CONCURRENCY:-2}"
 TSINGEST_COOKIE_SECURE="${TSINGEST_COOKIE_SECURE:-false}"
 TSINGEST_PUBLIC_URL="${TSINGEST_PUBLIC_URL:-}"
+TSINGEST_DOCKER_SUBNET="${TSINGEST_DOCKER_SUBNET:-172.31.240.0/24}"
 
 usage() {
   cat <<'EOF'
@@ -37,6 +38,7 @@ Options:
   --mp4-concurrency VALUE         MP4 conversion concurrency. Default: 2
   --cookie-secure true|false      Secure cookie flag behind HTTPS. Default: false
   --public-url URL                Public URL behind reverse proxy
+  --docker-subnet CIDR            Compose bridge subnet. Default: 172.31.240.0/24
   --non-interactive               Do not prompt; generate missing secrets
   --force                         Overwrite existing env file
   -h, --help                      Show this help
@@ -62,6 +64,7 @@ while [ "$#" -gt 0 ]; do
     --mp4-concurrency) TSINGEST_MP4_CONCURRENCY="$2"; shift 2 ;;
     --cookie-secure) TSINGEST_COOKIE_SECURE="$2"; shift 2 ;;
     --public-url) TSINGEST_PUBLIC_URL="$2"; shift 2 ;;
+    --docker-subnet) TSINGEST_DOCKER_SUBNET="$2"; shift 2 ;;
     --non-interactive) NON_INTERACTIVE="true"; shift ;;
     --force) FORCE="true"; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -123,10 +126,22 @@ TSINGEST_MAX_ACTIVE_RECORDINGS="$(prompt_value TSINGEST_MAX_ACTIVE_RECORDINGS "$
 TSINGEST_MP4_CONCURRENCY="$(prompt_value TSINGEST_MP4_CONCURRENCY "$TSINGEST_MP4_CONCURRENCY" "MP4 concurrency")"
 TSINGEST_COOKIE_SECURE="$(prompt_value TSINGEST_COOKIE_SECURE "$TSINGEST_COOKIE_SECURE" "Secure cookie true/false")"
 TSINGEST_PUBLIC_URL="$(prompt_value TSINGEST_PUBLIC_URL "$TSINGEST_PUBLIC_URL" "Public URL, empty for LAN HTTP")"
+TSINGEST_DOCKER_SUBNET="$(prompt_value TSINGEST_DOCKER_SUBNET "$TSINGEST_DOCKER_SUBNET" "Docker bridge subnet")"
 
 case "$TSINGEST_COOKIE_SECURE" in
   true|false) ;;
   *) echo "TSINGEST_COOKIE_SECURE must be true or false." >&2; exit 1 ;;
+esac
+
+case "$APP_VERSION" in
+  ""|*/*|*\\*|*:*|*" "*)
+    echo "APP_VERSION must be a Docker tag such as 0.1.0, not: $APP_VERSION" >&2
+    exit 1
+    ;;
+esac
+
+case "$WEB_PORT" in
+  *[!0-9]*|"") echo "WEB_PORT must be a number." >&2; exit 1 ;;
 esac
 
 case "$TSINGEST_ENCRYPTION_KEY" in
@@ -151,6 +166,7 @@ TSINGEST_MAX_ACTIVE_RECORDINGS=$TSINGEST_MAX_ACTIVE_RECORDINGS
 TSINGEST_MP4_CONCURRENCY=$TSINGEST_MP4_CONCURRENCY
 TSINGEST_COOKIE_SECURE=$TSINGEST_COOKIE_SECURE
 TSINGEST_PUBLIC_URL=$TSINGEST_PUBLIC_URL
+TSINGEST_DOCKER_SUBNET=$TSINGEST_DOCKER_SUBNET
 EOF
 mv "$tmp_file" "$ENV_FILE"
 

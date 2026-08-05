@@ -48,6 +48,14 @@ Live Media Mesh 的生产级多路 SRT 收录管理系统。每次手动录制�
 
 Listener 使用 UDP 端口 `9000–9099`。请在主机防火墙中仅向需要的发送端开放对应 UDP 端口。
 
+如果启动时报 `could not find an available, non-overlapping IPv4 address pool`，说明 Docker 默认网段和服务器现有网络冲突。修改 `.env` 中的 `TSINGEST_DOCKER_SUBNET`，例如：
+
+```env
+TSINGEST_DOCKER_SUBNET=172.31.240.0/24
+```
+
+如果仍冲突，可以换成生产网络中未使用的小网段，例如 `172.30.240.0/24` 或 `10.250.0.0/24`。
+
 ## 离线镜像包部署
 
 如果生产环境不能联网，或者希望在开发机打好镜像再带到现场：
