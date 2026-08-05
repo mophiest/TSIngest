@@ -106,6 +106,36 @@ TSINGEST_DOCKER_SUBNET=172.31.240.0/24
 
 生产机如果是 `x86_64`，使用 `linux/amd64`；如果是 `aarch64` 或 ARM 服务器，使用 `linux/arm64`。可以在生产机执行 `uname -m` 确认。
 
+## 源码直跑调试
+
+现场调试时可以只用 Docker 跑 Postgres，Web 和 Worker 直接从源码启动：
+
+```bash
+./scripts/configure-env.sh
+scripts/dev-run.sh
+```
+
+脚本会：
+
+- 用 `compose.dev.yaml` 把 Postgres 绑定到宿主机 `127.0.0.1:5432`
+- 执行 `npm ci && npm run build`
+- 将前端产物复制到 `internal/ui/dist`
+- 编译 `.dev/tsingest`
+- 同时启动 `web` 和 `worker`
+
+只启动单个角色：
+
+```bash
+scripts/dev-run.sh --role web
+scripts/dev-run.sh --role worker --skip-frontend --no-postgres
+```
+
+如果本机 `5432` 被占用：
+
+```bash
+POSTGRES_PORT=15432 scripts/dev-run.sh
+```
+
 ## 使用测试素材
 
 在界面添加一个 Listener 流，端口设为 `9000`，点击“开始录制”，随后执行：

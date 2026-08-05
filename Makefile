@@ -1,4 +1,4 @@
-.PHONY: build up down logs test unit configure package-offline multiarch
+.PHONY: build up down logs test unit configure dev-run package-offline multiarch
 
 build:
 	docker compose build
@@ -20,6 +20,9 @@ unit:
 
 configure:
 	./scripts/configure-env.sh
+
+dev-run:
+	./scripts/dev-run.sh
 
 package-offline:
 	./scripts/package-offline.sh
