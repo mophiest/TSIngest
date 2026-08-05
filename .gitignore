@@ -1,0 +1,10 @@
+.DS_Store
+.env
+data/
+sample_clip/*.ts
+web/node_modules/
+web/dist/
+internal/ui/dist/
+*.tsbuildinfo
+coverage/
+*.log

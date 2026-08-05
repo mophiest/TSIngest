@@ -1,0 +1,103 @@
+name: tsingest
+
+x-app-env: &app-env
+  TSINGEST_DATABASE_URL: postgres://tsingest:${POSTGRES_PASSWORD}@postgres:5432/tsingest?sslmode=disable
+  TSINGEST_ENCRYPTION_KEY: ${TSINGEST_ENCRYPTION_KEY:?请在.env中设置TSINGEST_ENCRYPTION_KEY}
+  TSINGEST_RECORDINGS_ROOT: /data/recordings
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tsingest
+      POSTGRES_USER: tsingest
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在.env中设置POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tsingest -d tsingest"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  web:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-0.1.0}
+    image: tsingest:${APP_VERSION:-0.1.0}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      TSINGEST_ROLE: web
+      TSINGEST_ADMIN_USERNAME: ${TSINGEST_ADMIN_USERNAME:-admin}
+      TSINGEST_ADMIN_PASSWORD: ${TSINGEST_ADMIN_PASSWORD:?请在.env中设置TSINGEST_ADMIN_PASSWORD}
+      TSINGEST_COOKIE_SECURE: ${TSINGEST_COOKIE_SECURE:-false}
+      TSINGEST_PUBLIC_URL: ${TSINGEST_PUBLIC_URL:-}
+    volumes:
+      - ${RECORDINGS_PATH:-./data/recordings}:/data/recordings:ro
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    logging: *logging
+
+  worker:
+    image: tsingest:${APP_VERSION:-0.1.0}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      TSINGEST_ROLE: worker
+      TSINGEST_WORKER_ID: ${TSINGEST_WORKER_ID:-recorder-01}
+      TSINGEST_MAX_ACTIVE_RECORDINGS: ${TSINGEST_MAX_ACTIVE_RECORDINGS:-64}
+      TSINGEST_MP4_CONCURRENCY: ${TSINGEST_MP4_CONCURRENCY:-2}
+    volumes:
+      - ${RECORDINGS_PATH:-./data/recordings}:/data/recordings
+    ports:
+      - "9000-9099:9000-9099/udp"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stop_grace_period: 35s
+    logging: *logging
+
+  test-sender:
+    image: tsingest:${APP_VERSION:-0.1.0}
+    profiles: ["tools"]
+    entrypoint: ["ffmpeg"]
+    command:
+      - -hide_banner
+      - -stream_loop
+      - "-1"
+      - -re
+      - -i
+      - /sample/two_audio_stream.ts
+      - -map
+      - "0"
+      - -c
+      - copy
+      - -f
+      - mpegts
+      - srt://worker:9000?mode=caller&transtype=live&latency=200000
+    volumes:
+      - ./sample_clip:/sample:ro
+    depends_on:
+      worker:
+        condition: service_started
+    restart: "no"
+    logging: *logging
+
+volumes:
+  postgres-data:

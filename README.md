@@ -1,0 +1,81 @@
+# TSIngest
+
+Live Media Mesh 的生产级多路 SRT 收录管理系统。每次手动录制生成一个完整 TS 文件；TS 正常结束后可以手动或自动生成 H.264 MP4。
+
+## 功能
+
+- Listener 与 Caller 两种 SRT 接入模式，最多 64 路并发收录。
+- 完整 TS 母版，不分段、不限制单次时长。
+- 多音轨保留；H.264 视频直接转封装，非 MP4 兼容音频逐轨转 AAC。
+- 单管理员会话认证、SRT 口令加密、后台命令持久化。
+- FFmpeg 进程组优雅停止、Worker 重启恢复、磁盘软硬水位保护。
+- 中文响应式管理界面、SSE 实时状态、MP4 预览及 Range 下载。
+- `linux/amd64` 与 `linux/arm64` Docker 镜像。
+- FFmpeg 固定为 Debian `5.1.9-0+deb12u1`，镜像构建会校验 SRT、MPEG-TS、MP4、H.264 解码和 AAC 编码能力。
+
+## 启动
+
+1. 准备配置和录制目录：
+
+   ```bash
+   cp .env.example .env
+   mkdir -p data/recordings
+   openssl rand -base64 32
+   ```
+
+   将生成的密钥填入 `.env` 的 `TSINGEST_ENCRYPTION_KEY`，同时修改数据库和管理员密码。Linux 主机需要确保 UID `10001` 对录制目录有读写权限：
+
+   ```bash
+   sudo chown -R 10001:10001 data/recordings
+   ```
+
+2. 构建并启动：
+
+   ```bash
+   docker compose build
+   docker compose up -d
+   ```
+
+3. 访问 `http://服务器地址:8080`，使用 `.env` 中的管理员账号登录。
+
+Listener 使用 UDP 端口 `9000–9099`。请在主机防火墙中仅向需要的发送端开放对应 UDP 端口。
+
+## 使用测试素材
+
+在界面添加一个 Listener 流，端口设为 `9000`，点击“开始录制”，随后执行：
+
+```bash
+docker compose --profile tools run --rm test-sender
+```
+
+停止测试发送端会触发 `source_disconnect`，系统仍会完成并保留 TS。也可以先在界面点击“停止录制”，由 Worker 向 FFmpeg 发送 `SIGINT` 并完成文件。
+
+## 录制状态判定
+
+- `等待输入`：FFmpeg 已启动，但还没有检测到持续增长的媒体输出。
+- `正在录制`：至少连续两次检测到 TS 字节或媒体时码增长；进度约每秒更新。
+- `录制停滞`：界面检测到最近媒体进度超过健康窗口未更新，会以黄色告警显示。
+- `正在收尾`：输入停止，Worker 正在执行 ffprobe 校验和文件完成操作。
+- `已完成`：TS 可被 ffprobe 解析、包含 H.264 视频、时长与文件大小有效，并已从 `.part.ts` 原子重命名为 `.ts`。
+- `异常`：未收到媒体、进程错误、磁盘错误或最终文件校验失败。
+
+收到首个媒体后，如果 TS 大小和媒体时码在该通道的“无数据超时”内均不再增长，Worker 会结束本次录制并按 `source_disconnect` 收尾。界面中的音轨数量只来自录制结束后的 ffprobe 结果，录制过程中不会预设音轨数。
+
+## 生产部署提示
+
+- 64 路 × 20 Mbps 的峰值写入约为 160 MB/s，部署前必须对目标数据盘做持续写入测试。
+- 默认软水位为剩余 `10%` 或 `100 GiB`，硬水位为剩余 `5%` 或 `20 GiB`。
+- 内网部署默认使用 HTTP。如由 HTTPS 反向代理暴露，请设置 `TSINGEST_PUBLIC_URL` 和 `TSINGEST_COOKIE_SECURE=true`。
+- Web 容器只读挂载录像目录；所有写入和删除均由 Worker 执行。
+- 系统不会自动删除旧录像，磁盘达到硬水位时会优雅停止活动录制。
+
+## 常用检查
+
+```bash
+docker compose ps
+docker compose logs -f web worker
+make unit
+curl http://localhost:8080/healthz
+curl http://localhost:8080/readyz
+curl http://localhost:8080/metrics
+```
