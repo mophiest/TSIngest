@@ -158,7 +158,7 @@ function DashboardPage({ data, setView, refresh, notify }: { data: Dashboard; se
             const waiting = state === 'waiting_input'
             return <tr key={stream.id} className={state === 'failed' ? 'alert-row' : ''}>
               <td><div className="channel-name"><span className="channel-no">{String(index + 1).padStart(2, '0')}</span><div><strong>{stream.name}</strong><small className="mono">{stream.streamId || shortId(stream.id)}</small></div></div></td>
-              <td><div className="endpoint-cell"><span>{stream.mode === 'listener' ? 'Listener' : 'Caller'}</span><strong className="mono">{stream.mode === 'listener' ? `0.0.0.0:${stream.port}` : `${stream.host}:${stream.port}`}</strong><small>{stream.mode === 'listener' ? '等待 Caller 连接' : `延迟 ${stream.latencyMs} ms`}</small></div></td>
+              <td><div className="endpoint-cell"><span>{stream.mode === 'listener' ? 'Listener' : 'Caller'}</span><strong className="mono">{stream.mode === 'listener' ? `0.0.0.0:${stream.port}` : `${stream.host}:${stream.port}`}</strong><small>{endpointHint(stream, state, signal)}</small></div></td>
               <td><span className={`signal-state ${signal}`} title={signalTitle(recording, data.serverTime)}>{signal === 'locked' ? <Wifi /> : signal === 'stalled' ? <AlertTriangle /> : <WifiOff />}{signal === 'locked' ? '媒体正常' : signal === 'stalled' ? '进度停滞' : state === 'failed' ? '信号中断' : state === 'finalizing' ? '已停止输入' : waiting ? '等待信号' : '未连接'}</span></td>
               <td><StatusBadge status={displayStatus} /></td>
               <td className="timecode mono">{recording ? formatTimecode(recording.progressMs) : '--:--:--:--'}</td>
@@ -287,6 +287,15 @@ function formatTimecode(ms:number){return `${formatDuration(ms)}:${String(Math.f
 function formatFullTime(value:string){return new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(value)).replaceAll('/','-')}
 function formatDate(value:string|undefined,withSeconds=false){if(!value)return '—';return new Intl.DateTimeFormat('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:withSeconds?'2-digit':undefined,hour12:false}).format(new Date(value))}
 function audioCount(recording?:Recording){if(!recording)return '—';const ts=fileOf(recording,'ts');return ts?.codecs.audio?.length ?? '—'}
+function endpointHint(stream:Stream,state:string,signal:string){
+  if(stream.mode==='caller') return state==='recording'&&signal==='locked'?'上游已连接 · 正在接收媒体':`延迟 ${stream.latencyMs} ms`
+  if(state==='recording'&&signal==='locked') return 'Caller 已连接 · 正在接收媒体'
+  if(state==='recording'&&signal==='stalled') return 'Caller 已连接 · 媒体进度停滞'
+  if(state==='waiting_input') return '监听中 · 等待 Caller 推流'
+  if(state==='finalizing') return '输入已停止 · 正在收尾'
+  if(state==='failed') return '连接中断或录制异常'
+  return '监听端口空闲'
+}
 function signalHealth(stream:Stream,active:Recording|undefined,latest:Recording|undefined,serverTime:string):'locked'|'stalled'|'waiting'|'lost'|'idle'|'finalizing'{if(!active)return latest?.status==='failed'?'lost':'idle';if(active.status==='waiting_input')return 'waiting';if(active.status==='finalizing')return 'finalizing';if(active.status!=='recording')return 'idle';if(!active.lastProgressAt||active.progressSize<=0)return 'stalled';const age=new Date(serverTime).getTime()-new Date(active.lastProgressAt).getTime();const warningAfter=Math.max(5000,Math.min(stream.timeoutMs/3,10000));return age>warningAfter?'stalled':'locked'}
 function signalTitle(recording:Recording|undefined,serverTime:string){if(!recording?.lastProgressAt)return '尚未收到有效媒体进度';const age=Math.max(0,new Date(serverTime).getTime()-new Date(recording.lastProgressAt).getTime());return `最后媒体进度：${Math.round(age/1000)} 秒前`}
 function buildEvents(data:Dashboard){
