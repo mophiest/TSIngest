@@ -2,8 +2,8 @@
 .gitignore
 .DS_Store
 data
+release
 web/node_modules
 web/dist
 *.log
 .env
-

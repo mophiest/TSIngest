@@ -1,4 +1,4 @@
-.PHONY: build up down logs test unit multiarch
+.PHONY: build up down logs test unit configure package-offline multiarch
 
 build:
 	docker compose build
@@ -17,6 +17,12 @@ test:
 
 unit:
 	docker run --rm -v "$$PWD:/src" -w /src golang:1.24-bookworm go test ./...
+
+configure:
+	./scripts/configure-env.sh
+
+package-offline:
+	./scripts/package-offline.sh
 
 multiarch:
 	docker buildx build --platform linux/amd64,linux/arm64 -t tsingest:$${APP_VERSION:-0.1.0} .

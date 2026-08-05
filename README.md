@@ -18,15 +18,23 @@ Live Media Mesh 的生产级多路 SRT 收录管理系统。每次手动录制�
 1. 准备配置和录制目录：
 
    ```bash
-   cp .env.example .env
-   mkdir -p data/recordings
-   openssl rand -base64 32
+   ./scripts/configure-env.sh
    ```
 
-   将生成的密钥填入 `.env` 的 `TSINGEST_ENCRYPTION_KEY`，同时修改数据库和管理员密码。Linux 主机需要确保 UID `10001` 对录制目录有读写权限：
+   也可以非交互生成生产配置：
 
    ```bash
-   sudo chown -R 10001:10001 data/recordings
+   ./scripts/configure-env.sh \
+     --non-interactive \
+     --recordings-path /data/tsingest/recordings \
+     --admin-password 'replace-with-a-strong-admin-password'
+   ```
+
+   Linux 主机需要确保 UID `10001` 对录制目录有读写权限：
+
+   ```bash
+   sudo mkdir -p /data/tsingest/recordings
+   sudo chown -R 10001:10001 /data/tsingest/recordings
    ```
 
 2. 构建并启动：
@@ -39,6 +47,54 @@ Live Media Mesh 的生产级多路 SRT 收录管理系统。每次手动录制�
 3. 访问 `http://服务器地址:8080`，使用 `.env` 中的管理员账号登录。
 
 Listener 使用 UDP 端口 `9000–9099`。请在主机防火墙中仅向需要的发送端开放对应 UDP 端口。
+
+## 离线镜像包部署
+
+如果生产环境不能联网，或者希望在开发机打好镜像再带到现场：
+
+1. 在构建机生成离线包：
+
+   ```bash
+   APP_VERSION=0.1.0 ./scripts/package-offline.sh
+   ```
+
+   输出文件：
+
+   ```text
+   release/tsingest-0.1.0-offline.tar.gz
+   ```
+
+   这个包包含：
+
+   - `tsingest:0.1.0` 应用镜像
+   - `postgres:17-alpine` 数据库镜像
+   - `compose.yaml`
+   - `.env.example`
+   - 配置脚本和加载脚本
+
+2. 拷贝到生产服务器并解压：
+
+   ```bash
+   tar -xzf tsingest-0.1.0-offline.tar.gz
+   cd tsingest-0.1.0
+   ```
+
+3. 加载镜像并生成配置：
+
+   ```bash
+   ./load-offline.sh
+   ./scripts/configure-env.sh
+   sudo mkdir -p /data/tsingest/recordings
+   sudo chown -R 10001:10001 /data/tsingest/recordings
+   ```
+
+4. 启动：
+
+   ```bash
+   docker compose up -d
+   ```
+
+后续升级同样重新生成离线包，到生产机执行 `./load-offline.sh` 后再 `docker compose up -d`。
 
 ## 使用测试素材
 
@@ -75,6 +131,7 @@ docker compose --profile tools run --rm test-sender
 docker compose ps
 docker compose logs -f web worker
 make unit
+make package-offline
 curl http://localhost:8080/healthz
 curl http://localhost:8080/readyz
 curl http://localhost:8080/metrics

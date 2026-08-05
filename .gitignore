@@ -7,4 +7,5 @@ web/dist/
 internal/ui/dist/
 *.tsbuildinfo
 coverage/
+release/
 *.log
