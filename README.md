@@ -63,13 +63,13 @@ TSINGEST_DOCKER_SUBNET=172.31.240.0/24
 1. 在构建机生成离线包：
 
    ```bash
-   APP_VERSION=0.1.0 ./scripts/package-offline.sh
+   APP_VERSION=0.1.0 ./scripts/package-offline.sh --platform linux/amd64
    ```
 
    输出文件：
 
    ```text
-   release/tsingest-0.1.0-offline.tar.gz
+   release/tsingest-0.1.0-linux-amd64-offline.tar.gz
    ```
 
    这个包包含：
@@ -83,8 +83,8 @@ TSINGEST_DOCKER_SUBNET=172.31.240.0/24
 2. 拷贝到生产服务器并解压：
 
    ```bash
-   tar -xzf tsingest-0.1.0-offline.tar.gz
-   cd tsingest-0.1.0
+   tar -xzf tsingest-0.1.0-linux-amd64-offline.tar.gz
+   cd tsingest-0.1.0-linux-amd64
    ```
 
 3. 加载镜像并生成配置：
@@ -103,6 +103,8 @@ TSINGEST_DOCKER_SUBNET=172.31.240.0/24
    ```
 
 后续升级同样重新生成离线包，到生产机执行 `./load-offline.sh` 后再 `docker compose up -d`。
+
+生产机如果是 `x86_64`，使用 `linux/amd64`；如果是 `aarch64` 或 ARM 服务器，使用 `linux/arm64`。可以在生产机执行 `uname -m` 确认。
 
 ## 使用测试素材
 

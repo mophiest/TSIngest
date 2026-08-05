@@ -20,8 +20,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/tsinges
 FROM debian:bookworm-slim
 ARG APP_VERSION=0.1.0
 ARG FFMPEG_DEB_VERSION=7:5.1.9-0+deb12u1
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_DEB_VERSION}" ca-certificates curl tzdata \
+ARG DEBIAN_MIRROR=http://deb.debian.org/debian
+ARG DEBIAN_SECURITY_MIRROR=http://deb.debian.org/debian-security
+RUN sed -i "s|http://deb.debian.org/debian-security|${DEBIAN_SECURITY_MIRROR}|g; s|http://deb.debian.org/debian|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends "ffmpeg=${FFMPEG_DEB_VERSION}" ca-certificates curl tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && ffmpeg -hide_banner -protocols 2>&1 | grep -qE '^[[:space:]]+srt$' \
     && ffmpeg -hide_banner -formats 2>&1 | grep -qE '^[[:space:]]*DE[[:space:]]+mpegts[[:space:]]' \
