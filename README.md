@@ -90,7 +90,9 @@ TSINGEST_SECCOMP_PROFILE=unconfined
 
 这样可以避免现场机器受到 Go 代理、Debian 源、npm 网络、Docker BuildKit 版本差异影响。
 
-如需发布新版本，在仓库创建 tag，例如 `v0.1.0`，GitHub Actions 会构建并推送 `linux/amd64` 与 `linux/arm64` 镜像。
+如需发布新版本，在仓库创建 tag，例如 `v0.1.0`，GitHub Actions 默认构建并推送 `linux/amd64` 镜像，并启用远程构建缓存。当前生产服务器是 `x86_64`，使用这个默认值即可。
+
+如以后确实需要 ARM 服务器，可以手动运行 `release-images` workflow，并把 platforms 改为 `linux/amd64,linux/arm64`。
 如果 GHCR 包保持私有，生产机需要先执行 `docker login ghcr.io`；如果设为 public，则可以直接拉取。
 
 ## 离线镜像包部署
@@ -141,7 +143,7 @@ TSINGEST_SECCOMP_PROFILE=unconfined
 
 后续升级同样重新生成离线包，到生产机执行 `./load-offline.sh` 后再 `docker compose up -d`。
 
-生产机如果是 `x86_64`，使用 `linux/amd64`；如果是 `aarch64` 或 ARM 服务器，使用 `linux/arm64`。可以在生产机执行 `uname -m` 确认。
+生产机如果是 `x86_64`，使用 `linux/amd64`；如果是 `aarch64` 或 ARM 服务器，才需要单独构建 `linux/arm64`。可以在生产机执行 `uname -m` 确认。
 
 ## 源码直跑调试
 
