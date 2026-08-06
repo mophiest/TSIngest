@@ -578,9 +578,9 @@ func (r *Runner) generateMP4(ctx context.Context, jobID string) error {
 		return err
 	}
 	outProbe, err := media.Probe(ctx, r.cfg.FFprobePath, partPath)
-	if err != nil || !outProbe.HasH264Video() || !outProbe.HasAudio() || outProbe.DurationMS() <= 0 {
+	if err != nil || !outProbe.HasMP4CompatibleVideo() || !outProbe.HasAudio() || outProbe.DurationMS() <= 0 {
 		if err == nil {
-			err = errors.New("生成的MP4未通过H.264、音轨和时长校验")
+			err = errors.New("生成的MP4未通过视频编码、音轨和时长校验")
 		}
 		_ = r.store.FinishMP4(ctx, jobID, "failed", err.Error())
 		return err

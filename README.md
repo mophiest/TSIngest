@@ -1,17 +1,17 @@
 # TSIngest
 
-Live Media Mesh 的生产级多路 SRT 收录管理系统。每次手动录制生成一个完整 TS 文件；TS 正常结束后可以手动或自动生成 H.264 MP4。
+Live Media Mesh 的生产级多路 SRT 收录管理系统。每次手动录制生成一个完整 TS 文件；TS 正常结束后可以手动或自动生成 H.264 / H.265 MP4。
 
 ## 功能
 
 - Listener 与 Caller 两种 SRT 接入模式，最多 64 路并发收录。
 - 完整 TS 母版，不分段、不限制单次时长。
-- 多音轨保留；H.264 视频直接转封装，非 MP4 兼容音频逐轨转 AAC。
+- 多音轨保留；H.264 与 HEVC/H.265 视频直接转封装，非 MP4 兼容音频逐轨转 AAC。
 - 单管理员会话认证、SRT 口令加密、后台命令持久化。
 - FFmpeg 进程组优雅停止、Worker 重启恢复、磁盘软硬水位保护。
 - 中文响应式管理界面、SSE 实时状态、MP4 预览及 Range 下载。
 - `linux/amd64` 与 `linux/arm64` Docker 镜像。
-- FFmpeg 固定为 Debian `5.1.9-0+deb12u1`，镜像构建会校验 SRT、MPEG-TS、MP4、H.264 解码和 AAC 编码能力。
+- FFmpeg 固定为 Debian `5.1.9-0+deb12u1`，镜像构建会校验 SRT、MPEG-TS、MP4、H.264、HEVC 和 AAC 能力。
 
 ## 启动
 
@@ -191,7 +191,7 @@ docker compose --profile tools run --rm test-sender
 - `正在录制`：至少连续两次检测到 TS 字节或媒体时码增长；进度约每秒更新。
 - `录制停滞`：界面检测到最近媒体进度超过健康窗口未更新，会以黄色告警显示。
 - `正在收尾`：输入停止，Worker 正在执行 ffprobe 校验和文件完成操作。
-- `已完成`：TS 可被 ffprobe 解析、包含 H.264 视频、时长与文件大小有效，并已从 `.part.ts` 原子重命名为 `.ts`。
+- `已完成`：TS 可被 ffprobe 解析、时长与文件大小有效，并已从 `.part.ts` 原子重命名为 `.ts`。
 - `异常`：未收到媒体、进程错误、磁盘错误或最终文件校验失败。
 
 收到首个媒体后，如果 TS 大小和媒体时码在该通道的“无数据超时”内均不再增长，Worker 会结束本次录制并按 `source_disconnect` 收尾。界面中的音轨数量只来自录制结束后的 ffprobe 结果，录制过程中不会预设音轨数。

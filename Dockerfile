@@ -34,6 +34,7 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean \
     && ffmpeg -hide_banner -formats 2>&1 | grep -qE '^[[:space:]]*DE[[:space:]]+mpegts[[:space:]]' \
     && ffmpeg -hide_banner -formats 2>&1 | grep -qE '^[[:space:]]*E[[:space:]]+mp4[[:space:]]' \
     && ffmpeg -hide_banner -decoders 2>&1 | grep -qE '^[[:space:]]*V.*[[:space:]]h264[[:space:]]' \
+    && ffmpeg -hide_banner -decoders 2>&1 | grep -qE '^[[:space:]]*V.*[[:space:]]hevc[[:space:]]' \
     && ffmpeg -hide_banner -encoders 2>&1 | grep -qE '^[[:space:]]*A.*[[:space:]]aac[[:space:]]'
 RUN groupadd --gid 10001 tsingest && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin tsingest
 WORKDIR /app

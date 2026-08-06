@@ -78,6 +78,20 @@ func (p ProbeResult) HasH264Video() bool {
 	return false
 }
 
+func (p ProbeResult) PrimaryVideoCodec() string {
+	for _, stream := range p.Streams {
+		if stream.CodecType == "video" {
+			return stream.CodecName
+		}
+	}
+	return ""
+}
+
+func (p ProbeResult) HasMP4CompatibleVideo() bool {
+	codec := p.PrimaryVideoCodec()
+	return codec == "h264" || codec == "hevc"
+}
+
 func (p ProbeResult) HasAudio() bool {
 	for _, stream := range p.Streams {
 		if stream.CodecType == "audio" {
@@ -149,10 +163,14 @@ func RedactSRTURL(raw string) string {
 }
 
 func MP4Args(input, output string, probe ProbeResult) ([]string, error) {
-	if !probe.HasH264Video() {
-		return nil, errors.New("TS视频编码不是H.264，第一版不支持视频转码")
+	videoCodec := probe.PrimaryVideoCodec()
+	if !probe.HasMP4CompatibleVideo() {
+		return nil, errors.New("TS视频编码不是H.264或HEVC，当前版本不支持视频转码")
 	}
 	args := []string{"-hide_banner", "-nostdin", "-y", "-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "copy", "-c:a", "copy"}
+	if videoCodec == "hevc" {
+		args = append(args, "-tag:v", "hvc1")
+	}
 	audioIndex := 0
 	for _, stream := range probe.Streams {
 		if stream.CodecType != "audio" {

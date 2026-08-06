@@ -66,10 +66,24 @@ func TestMP4ArgsPreserveAndTranscodeAudio(t *testing.T) {
 	}
 }
 
-func TestMP4RejectsNonH264(t *testing.T) {
-	_, err := MP4Args("input.ts", "output.mp4", ProbeResult{Streams: []ProbeStream{{CodecType: "video", CodecName: "hevc"}}})
+func TestMP4ArgsAcceptsHEVC(t *testing.T) {
+	args, err := MP4Args("input.ts", "output.part.mp4", ProbeResult{Streams: []ProbeStream{
+		{CodecType: "video", CodecName: "hevc"},
+		{CodecType: "audio", CodecName: "ac3"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "-c:v copy") || !strings.Contains(joined, "-tag:v hvc1") || !strings.Contains(joined, "-c:a:0 aac") {
+		t.Fatalf("unexpected HEVC arguments: %s", joined)
+	}
+}
+
+func TestMP4RejectsUnsupportedVideo(t *testing.T) {
+	_, err := MP4Args("input.ts", "output.mp4", ProbeResult{Streams: []ProbeStream{{CodecType: "video", CodecName: "mpeg2video"}}})
 	if err == nil {
-		t.Fatal("non-H264 video was accepted")
+		t.Fatal("unsupported video was accepted")
 	}
 }
 
