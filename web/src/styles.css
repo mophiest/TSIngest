@@ -74,7 +74,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .refresh-button { align-self: center; margin-left: auto; }
 .content { max-width: 1800px; margin: 0 auto; padding: 16px 18px 24px; }
 .content:has(.ops-layout) { max-width: none; padding: 0; }
-.mobile-menu, .scrim { display: none; }
+.icon-button.mobile-menu, .scrim { display: none; }
 
 .icon-button, .tool-button { width: 34px; height: 34px; padding: 0; display: inline-grid; place-items: center; color: #8c9aa2; background: #10171b; border: 1px solid var(--line); border-radius: 4px; text-decoration: none; transition: color .15s, background .15s, border-color .15s; }
 .icon-button:hover, .tool-button:hover { color: var(--teal); background: #16221f; border-color: #315449; }
@@ -458,7 +458,7 @@ table:not(.ops-table) td small { display: block; margin-top: 3px; color: #617078
   .sidebar.open { transform: translateX(0); }
   .scrim { position: fixed; z-index: 29; inset: 0; display: block; background: rgba(0, 0, 0, .6); border: 0; }
   .main { margin-left: 0; }
-  .mobile-menu { align-self: center; display: grid; margin-right: 10px; }
+  .icon-button.mobile-menu { align-self: center; display: grid; margin-right: 10px; }
   .topbar { padding-inline: 12px; }
   .system-strip { justify-content: flex-end; }
   .system-item { display: none; }
