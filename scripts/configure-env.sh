@@ -19,6 +19,8 @@ TSINGEST_COOKIE_SECURE="${TSINGEST_COOKIE_SECURE:-false}"
 TSINGEST_PUBLIC_URL="${TSINGEST_PUBLIC_URL:-}"
 TSINGEST_DOCKER_SUBNET="${TSINGEST_DOCKER_SUBNET:-172.31.240.0/24}"
 TSINGEST_SECCOMP_PROFILE="${TSINGEST_SECCOMP_PROFILE:-unconfined}"
+DEBIAN_MIRROR="${DEBIAN_MIRROR:-http://deb.debian.org/debian}"
+DEBIAN_SECURITY_MIRROR="${DEBIAN_SECURITY_MIRROR:-http://deb.debian.org/debian-security}"
 
 usage() {
   cat <<'EOF'
@@ -41,6 +43,8 @@ Options:
   --public-url URL                Public URL behind reverse proxy
   --docker-subnet CIDR            Compose bridge subnet. Default: 172.31.240.0/24
   --seccomp-profile VALUE         Worker seccomp profile. Default: unconfined
+  --debian-mirror URL             Debian package mirror used while building images
+  --debian-security-mirror URL    Debian security mirror used while building images
   --non-interactive               Do not prompt; generate missing secrets
   --force                         Overwrite existing env file
   -h, --help                      Show this help
@@ -68,6 +72,8 @@ while [ "$#" -gt 0 ]; do
     --public-url) TSINGEST_PUBLIC_URL="$2"; shift 2 ;;
     --docker-subnet) TSINGEST_DOCKER_SUBNET="$2"; shift 2 ;;
     --seccomp-profile) TSINGEST_SECCOMP_PROFILE="$2"; shift 2 ;;
+    --debian-mirror) DEBIAN_MIRROR="$2"; shift 2 ;;
+    --debian-security-mirror) DEBIAN_SECURITY_MIRROR="$2"; shift 2 ;;
     --non-interactive) NON_INTERACTIVE="true"; shift ;;
     --force) FORCE="true"; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -131,6 +137,8 @@ TSINGEST_COOKIE_SECURE="$(prompt_value TSINGEST_COOKIE_SECURE "$TSINGEST_COOKIE_
 TSINGEST_PUBLIC_URL="$(prompt_value TSINGEST_PUBLIC_URL "$TSINGEST_PUBLIC_URL" "Public URL, empty for LAN HTTP")"
 TSINGEST_DOCKER_SUBNET="$(prompt_value TSINGEST_DOCKER_SUBNET "$TSINGEST_DOCKER_SUBNET" "Docker bridge subnet")"
 TSINGEST_SECCOMP_PROFILE="$(prompt_value TSINGEST_SECCOMP_PROFILE "$TSINGEST_SECCOMP_PROFILE" "Worker seccomp profile")"
+DEBIAN_MIRROR="$(prompt_value DEBIAN_MIRROR "$DEBIAN_MIRROR" "Debian mirror")"
+DEBIAN_SECURITY_MIRROR="$(prompt_value DEBIAN_SECURITY_MIRROR "$DEBIAN_SECURITY_MIRROR" "Debian security mirror")"
 
 case "$TSINGEST_COOKIE_SECURE" in
   true|false) ;;
@@ -172,6 +180,8 @@ TSINGEST_COOKIE_SECURE=$TSINGEST_COOKIE_SECURE
 TSINGEST_PUBLIC_URL=$TSINGEST_PUBLIC_URL
 TSINGEST_DOCKER_SUBNET=$TSINGEST_DOCKER_SUBNET
 TSINGEST_SECCOMP_PROFILE=$TSINGEST_SECCOMP_PROFILE
+DEBIAN_MIRROR=$DEBIAN_MIRROR
+DEBIAN_SECURITY_MIRROR=$DEBIAN_SECURITY_MIRROR
 EOF
 mv "$tmp_file" "$ENV_FILE"
 

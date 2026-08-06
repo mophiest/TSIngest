@@ -31,6 +31,8 @@ services:
       context: .
       args:
         APP_VERSION: ${APP_VERSION:-0.1.0}
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-http://deb.debian.org/debian}
+        DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-http://deb.debian.org/debian-security}
     image: tsingest:${APP_VERSION:-0.1.0}
     restart: unless-stopped
     environment:
