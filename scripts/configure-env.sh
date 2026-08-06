@@ -6,6 +6,13 @@ FORCE="false"
 NON_INTERACTIVE="false"
 
 APP_VERSION="${APP_VERSION:-0.1.0}"
+DEFAULT_TSINGEST_IMAGE="tsingest:${APP_VERSION}"
+TSINGEST_IMAGE="${TSINGEST_IMAGE:-${DEFAULT_TSINGEST_IMAGE}}"
+TSINGEST_IMAGE_WAS_DEFAULT="false"
+if [ "$TSINGEST_IMAGE" = "$DEFAULT_TSINGEST_IMAGE" ]; then
+  TSINGEST_IMAGE_WAS_DEFAULT="true"
+fi
+POSTGRES_IMAGE="${POSTGRES_IMAGE:-postgres:17-alpine}"
 WEB_PORT="${WEB_PORT:-8080}"
 RECORDINGS_PATH="${RECORDINGS_PATH:-/data/tsingest/recordings}"
 TSINGEST_ADMIN_USERNAME="${TSINGEST_ADMIN_USERNAME:-admin}"
@@ -31,6 +38,8 @@ Usage:
 Options:
   --env-file PATH                 Write config to PATH. Default: .env
   --app-version VALUE             Docker image tag. Default: 0.1.0
+  --image IMAGE                   TSIngest image. Default: tsingest:<app-version>
+  --postgres-image IMAGE          Postgres image. Default: postgres:17-alpine
   --web-port PORT                 Host web port. Default: 8080
   --recordings-path PATH          Host recordings directory. Default: /data/tsingest/recordings
   --admin-user VALUE              Admin username. Default: admin
@@ -61,6 +70,8 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --env-file) ENV_FILE="$2"; shift 2 ;;
     --app-version) APP_VERSION="$2"; shift 2 ;;
+    --image) TSINGEST_IMAGE="$2"; TSINGEST_IMAGE_WAS_DEFAULT="false"; shift 2 ;;
+    --postgres-image) POSTGRES_IMAGE="$2"; shift 2 ;;
     --web-port) WEB_PORT="$2"; shift 2 ;;
     --recordings-path) RECORDINGS_PATH="$2"; shift 2 ;;
     --admin-user) TSINGEST_ADMIN_USERNAME="$2"; shift 2 ;;
@@ -127,6 +138,11 @@ prompt_secret() {
 }
 
 APP_VERSION="$(prompt_value APP_VERSION "$APP_VERSION" "Image tag")"
+if [ "$TSINGEST_IMAGE_WAS_DEFAULT" = "true" ] || [ "$TSINGEST_IMAGE" = "tsingest:" ]; then
+  TSINGEST_IMAGE="tsingest:${APP_VERSION}"
+fi
+TSINGEST_IMAGE="$(prompt_value TSINGEST_IMAGE "$TSINGEST_IMAGE" "TSIngest image")"
+POSTGRES_IMAGE="$(prompt_value POSTGRES_IMAGE "$POSTGRES_IMAGE" "Postgres image")"
 WEB_PORT="$(prompt_value WEB_PORT "$WEB_PORT" "Web port")"
 RECORDINGS_PATH="$(prompt_value RECORDINGS_PATH "$RECORDINGS_PATH" "Recordings path")"
 TSINGEST_ADMIN_USERNAME="$(prompt_value TSINGEST_ADMIN_USERNAME "$TSINGEST_ADMIN_USERNAME" "Admin username")"
@@ -169,6 +185,8 @@ tmp_file="${ENV_FILE}.tmp.$$"
 umask 077
 cat > "$tmp_file" <<EOF
 APP_VERSION=$APP_VERSION
+TSINGEST_IMAGE=$TSINGEST_IMAGE
+POSTGRES_IMAGE=$POSTGRES_IMAGE
 WEB_PORT=$WEB_PORT
 RECORDINGS_PATH=$RECORDINGS_PATH
 

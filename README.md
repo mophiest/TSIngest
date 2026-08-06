@@ -37,14 +37,25 @@ Live Media Mesh 的生产级多路 SRT 收录管理系统。每次手动录制�
    sudo chown -R 10001:10001 /data/tsingest/recordings
    ```
 
-2. 构建并启动：
+2. 推荐：直接拉取预构建镜像并启动：
+
+   ```bash
+   # 如果使用 GitHub Container Registry 发布镜像
+   sed -i '/^TSINGEST_IMAGE=/d' .env
+   echo 'TSINGEST_IMAGE=ghcr.io/mophiest/tsingest:0.1.0' >> .env
+   ./scripts/deploy-online.sh --image ghcr.io/mophiest/tsingest:0.1.0
+   ```
+
+   这种方式不会在生产机编译 Go、安装 npm 依赖或执行 apt 安装 FFmpeg，最适合正式部署。
+
+3. 源码构建并启动：
 
    ```bash
    docker compose build
    docker compose up -d
    ```
 
-3. 访问 `http://服务器地址:8080`，使用 `.env` 中的管理员账号登录。
+4. 访问 `http://服务器地址:8080`，使用 `.env` 中的管理员账号登录。
 
 Listener 使用 UDP 端口 `9000–9099`。请在主机防火墙中仅向需要的发送端开放对应 UDP 端口。
 
@@ -63,6 +74,24 @@ TSINGEST_SECCOMP_PROFILE=unconfined
 ```
 
 该配置只应用于运行 FFmpeg 的 `worker` 和测试发送容器。升级 Docker/libseccomp 后，如需收紧可改为 `default` 并重新 `docker compose up -d`。
+
+## 推荐生产发布方式
+
+正式环境建议不要在生产机 `docker compose build`。推荐发布流程：
+
+1. 在 GitHub Actions 或构建机生成镜像。
+2. 推送为 `ghcr.io/mophiest/tsingest:<版本号>`。
+3. 生产机只执行：
+
+   ```bash
+   git pull
+   ./scripts/deploy-online.sh --image ghcr.io/mophiest/tsingest:0.1.0
+   ```
+
+这样可以避免现场机器受到 Go 代理、Debian 源、npm 网络、Docker BuildKit 版本差异影响。
+
+如需发布新版本，在仓库创建 tag，例如 `v0.1.0`，GitHub Actions 会构建并推送 `linux/amd64` 与 `linux/arm64` 镜像。
+如果 GHCR 包保持私有，生产机需要先执行 `docker login ghcr.io`；如果设为 public，则可以直接拉取。
 
 ## 离线镜像包部署
 

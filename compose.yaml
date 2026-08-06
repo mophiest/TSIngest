@@ -7,7 +7,7 @@ x-app-env: &app-env
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
     restart: unless-stopped
     environment:
       POSTGRES_DB: tsingest
@@ -34,7 +34,7 @@ services:
         GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
         DEBIAN_MIRROR: ${DEBIAN_MIRROR:-http://deb.debian.org/debian}
         DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-http://deb.debian.org/debian-security}
-    image: tsingest:${APP_VERSION:-0.1.0}
+    image: ${TSINGEST_IMAGE:-tsingest:${APP_VERSION:-0.1.0}}
     restart: unless-stopped
     environment:
       <<: *app-env
@@ -58,7 +58,7 @@ services:
     logging: *logging
 
   worker:
-    image: tsingest:${APP_VERSION:-0.1.0}
+    image: ${TSINGEST_IMAGE:-tsingest:${APP_VERSION:-0.1.0}}
     restart: unless-stopped
     security_opt:
       - seccomp=${TSINGEST_SECCOMP_PROFILE:-unconfined}
@@ -79,7 +79,7 @@ services:
     logging: *logging
 
   test-sender:
-    image: tsingest:${APP_VERSION:-0.1.0}
+    image: ${TSINGEST_IMAGE:-tsingest:${APP_VERSION:-0.1.0}}
     profiles: ["tools"]
     security_opt:
       - seccomp=${TSINGEST_SECCOMP_PROFILE:-unconfined}

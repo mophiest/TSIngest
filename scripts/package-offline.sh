@@ -4,6 +4,7 @@ set -eu
 APP_VERSION="${APP_VERSION:-0.1.0}"
 OUT_DIR="${OUT_DIR:-release}"
 TARGET_PLATFORM="${TARGET_PLATFORM:-linux/amd64}"
+GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
 DEBIAN_MIRROR="${DEBIAN_MIRROR:-http://mirrors.aliyun.com/debian}"
 DEBIAN_SECURITY_MIRROR="${DEBIAN_SECURITY_MIRROR:-http://mirrors.aliyun.com/debian-security}"
 APP_IMAGE="tsingest:${APP_VERSION}"
@@ -22,6 +23,7 @@ Options:
   --app-version VALUE     Image tag. Default: APP_VERSION env or 0.1.0
   --out-dir PATH          Output directory. Default: release
   --platform PLATFORM     Target platform. Default: linux/amd64
+  --goproxy VALUE         Go module proxy. Default: https://goproxy.cn,direct
   --debian-mirror URL     Debian mirror. Default: http://mirrors.aliyun.com/debian
   --debian-security URL   Debian security mirror. Default: http://mirrors.aliyun.com/debian-security
   --postgres-image IMAGE  Database image. Default: postgres:17-alpine
@@ -42,6 +44,7 @@ while [ "$#" -gt 0 ]; do
     --app-version) APP_VERSION="$2"; refresh_names; shift 2 ;;
     --out-dir) OUT_DIR="$2"; refresh_names; shift 2 ;;
     --platform) TARGET_PLATFORM="$2"; refresh_names; shift 2 ;;
+    --goproxy) GOPROXY="$2"; shift 2 ;;
     --debian-mirror) DEBIAN_MIRROR="$2"; shift 2 ;;
     --debian-security) DEBIAN_SECURITY_MIRROR="$2"; shift 2 ;;
     --postgres-image) POSTGRES_IMAGE="$2"; shift 2 ;;
@@ -66,6 +69,7 @@ echo "Building ${APP_IMAGE} for ${TARGET_PLATFORM}..."
 docker buildx build \
   --platform "$TARGET_PLATFORM" \
   --build-arg "APP_VERSION=${APP_VERSION}" \
+  --build-arg "GOPROXY=${GOPROXY}" \
   --build-arg "DEBIAN_MIRROR=${DEBIAN_MIRROR}" \
   --build-arg "DEBIAN_SECURITY_MIRROR=${DEBIAN_SECURITY_MIRROR}" \
   --load \
