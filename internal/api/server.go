@@ -59,6 +59,7 @@ func New(cfg app.Config, store *app.Store, log *slog.Logger) http.Handler {
 			sr.Get("/{id}", s.getStream)
 			sr.Put("/{id}", s.updateStream)
 			sr.Delete("/{id}", s.deleteStream)
+			sr.Post("/{id}/diagnose", s.diagnoseStream)
 			sr.Post("/{id}/recordings", s.startRecording)
 		})
 		protected.Route("/api/v1/recordings", func(rr chi.Router) {
@@ -278,6 +279,40 @@ func (s *Server) deleteStream(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	s.store.Audit(r.Context(), u.ID, "stream.delete", "stream", id, map[string]any{})
 	w.WriteHeader(204)
+}
+func (s *Server) diagnoseStream(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	stream, err := s.store.GetStreamSecret(r.Context(), id)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	passphrase, err := app.DecryptSecret(s.cfg.EncryptionKey, stream.PassphraseEnc)
+	if err != nil {
+		writeError(w, 500, "无法解密SRT口令")
+		return
+	}
+	inputURL, err := media.BuildSRTURL(stream, passphrase)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+	start := time.Now()
+	probe, err := media.ProbeWithTimeout(s.cfg.FFprobePath, inputURL, 12*time.Second)
+	result := map[string]any{
+		"ok":         err == nil,
+		"url":        media.RedactSRTURL(inputURL),
+		"durationMs": time.Since(start).Milliseconds(),
+	}
+	if err != nil {
+		result["error"] = err.Error()
+		result["hint"] = diagnoseHint(err.Error())
+		writeJSON(w, 200, result)
+		return
+	}
+	result["streams"] = probe.CodecSummary()
+	result["hint"] = "已探测到媒体流，SRT连接和Stream ID基本可用。"
+	writeJSON(w, 200, result)
 }
 func (s *Server) startRecording(w http.ResponseWriter, r *http.Request) {
 	item, err := s.store.StartRecording(r.Context(), chi.URLParam(r, "id"), s.cfg.MaxActiveRecordings)
@@ -519,6 +554,21 @@ func writeDBError(w http.ResponseWriter, err error) {
 		return
 	}
 	writeError(w, 500, "服务器处理请求失败")
+}
+func diagnoseHint(message string) string {
+	lower := strings.ToLower(message)
+	switch {
+	case strings.Contains(lower, "input/output error"), strings.Contains(lower, "connection"):
+		return "SRT握手失败或上游拒绝连接。请确认上游是listener、地址端口可达、Stream ID与权限匹配。"
+	case strings.Contains(lower, "timed out"), strings.Contains(lower, "timeout"), strings.Contains(lower, "context deadline"):
+		return "探测超时。可能是网络不通、上游未监听、Stream ID无权限，或上游连接后没有发送媒体。"
+	case strings.Contains(lower, "passphrase"), strings.Contains(lower, "encryption"):
+		return "SRT加密参数不匹配。请确认口令和pbkeylen配置。"
+	case strings.Contains(lower, "invalid data"), strings.Contains(lower, "could not find codec"):
+		return "已连接但未识别到可用媒体，可能不是MPEG-TS/H.264输入或上游没有输出数据。"
+	default:
+		return "请根据ffprobe错误检查上游SRT服务、Stream ID、网络连通性和加密参数。"
+	}
 }
 func clearSessionCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{Name: "tsingest_session", Value: "", Path: "/", HttpOnly: true, Secure: secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})

@@ -1,4 +1,4 @@
-import type { Dashboard, Recording, Settings, Stream } from './types'
+import type { Dashboard, Recording, Settings, Stream, StreamDiagnosis } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -27,6 +27,7 @@ export const api = {
   createStream: (input: StreamForm) => request<Stream>('/api/v1/streams/', { method: 'POST', body: JSON.stringify(input) }),
   updateStream: (id: string, input: StreamForm) => request<Stream>(`/api/v1/streams/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
   deleteStream: (id: string) => request(`/api/v1/streams/${id}`, { method: 'DELETE' }),
+  diagnoseStream: (id: string) => request<StreamDiagnosis>(`/api/v1/streams/${id}/diagnose`, { method: 'POST' }),
   startRecording: (streamId: string) => request<Recording>(`/api/v1/streams/${streamId}/recordings`, { method: 'POST' }),
   stopRecording: (id: string) => request<Recording>(`/api/v1/recordings/${id}/stop`, { method: 'POST' }),
   deleteRecording: (id: string) => request(`/api/v1/recordings/${id}`, { method: 'DELETE' }),

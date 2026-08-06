@@ -39,6 +39,17 @@ func TestCallerSRTURL(t *testing.T) {
 	}
 }
 
+func TestCallerSRTURLKeepsStreamIDColonReadable(t *testing.T) {
+	stream := app.StreamSecret{Stream: app.Stream{Mode: "caller", Host: "192.168.1.30", Port: 8890, LatencyMS: 200, TimeoutMS: 30000, StreamID: "read:27srt-h1"}}
+	raw, err := BuildSRTURL(stream, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(raw, "streamid=read:27srt-h1") {
+		t.Fatalf("streamid colon should remain readable in SRT URL: %s", raw)
+	}
+}
+
 func TestMP4ArgsPreserveAndTranscodeAudio(t *testing.T) {
 	probe := ProbeResult{Streams: []ProbeStream{
 		{CodecType: "video", CodecName: "h264"},

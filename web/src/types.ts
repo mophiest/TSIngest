@@ -17,6 +17,18 @@ export interface Stream {
   deletedAt?: string
 }
 
+export interface StreamDiagnosis {
+  ok: boolean
+  url: string
+  durationMs: number
+  hint: string
+  error?: string
+  streams?: {
+    video?: Array<{ codec: string; profile: string; width: number; height: number }>
+    audio?: Array<{ codec: string; channels: number; sampleRate: string; language?: string }>
+  }
+}
+
 export interface MediaFile {
   id: string
   recordingId: string

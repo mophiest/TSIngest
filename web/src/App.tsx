@@ -13,7 +13,7 @@ import {
   IconTrash as Trash2, IconX as X,
 } from '@tabler/icons-react'
 import { api, ApiError, type StreamForm } from './api'
-import type { Dashboard, MediaFile, Recording, Settings, Stream, WorkerHeartbeat } from './types'
+import type { Dashboard, MediaFile, Recording, Settings, Stream, StreamDiagnosis, WorkerHeartbeat } from './types'
 
 type View = 'dashboard' | 'streams' | 'recordings' | 'settings'
 type Toast = { kind: 'success' | 'error'; text: string }
@@ -196,32 +196,36 @@ function StreamsPage({ data, refresh, notify }: PageProps) {
   const [editing, setEditing] = useState<Stream | 'new' | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Stream | null>(null)
+  const [diagnosis, setDiagnosis] = useState<{ stream: Stream; result?: StreamDiagnosis; error?: string } | null>(null)
   const run = async (key: string, action: () => Promise<unknown>, success: string) => { setBusy(key); try { await action(); notify('success', success); await refresh() } catch (e) { notify('error', messageOf(e)) } finally { setBusy(null) } }
+  const diagnose = async (stream: Stream) => { setDiagnosis({ stream }); try { setDiagnosis({ stream, result: await api.diagnoseStream(stream.id) }) } catch (e) { setDiagnosis({ stream, error: messageOf(e) }) } }
   const nextPort = useMemo(() => { const used = new Set(data.streams.filter(s => s.mode === 'listener').map(s => s.port)); for (let p = 9000; p <= 9099; p++) if (!used.has(p)) return p; return 9000 }, [data.streams])
   return <>
     <section className="page-heading"><div><h2>SRT 输入通道</h2><p>配置 Listener 或 Caller，并按需开始完整 TS 收录。</p></div><button className="button primary" onClick={() => setEditing('new')}><Plus />添加流</button></section>
     <div className="stream-grid">
       {data.streams.map(stream => { const active = activeFor(data.recordings, stream.id); const isBusy = busy === stream.id; return <article className="stream-card" key={stream.id}>
-        <div className="stream-card-head"><div className={`channel-icon ${active ? 'active' : ''}`}>{active ? <Wifi /> : <Radio />}</div><div className="stream-actions"><button className="icon-button" title="编辑" onClick={() => setEditing(stream)} disabled={!!active}><Pencil size={17} /></button><button className="icon-button danger-ghost" title="删除" onClick={() => setConfirmDelete(stream)} disabled={!!active}><Trash2 size={17} /></button></div></div>
-        <h3>{stream.name}</h3><div className="endpoint mono">{stream.mode === 'listener' ? `srt://0.0.0.0:${stream.port}` : `srt://${stream.host}:${stream.port}`}</div>
+        <div className="stream-card-head"><div className={`channel-icon ${active ? 'active' : ''}`}>{active ? <Wifi /> : <Radio />}</div><div className="stream-actions">{stream.mode === 'caller' && <button className="icon-button" title="诊断 SRT 输入" onClick={() => diagnose(stream)} disabled={!!active || !!diagnosis && diagnosis.stream.id === stream.id && !diagnosis.result && !diagnosis.error}><Activity size={17} /></button>}<button className="icon-button" title="编辑" onClick={() => setEditing(stream)} disabled={!!active}><Pencil size={17} /></button><button className="icon-button danger-ghost" title="删除" onClick={() => setConfirmDelete(stream)} disabled={!!active}><Trash2 size={17} /></button></div></div>
+        <h3>{stream.name}</h3><div className="endpoint mono">{displaySRTURL(stream)}</div>
         <div className="stream-meta"><span><b>{stream.mode.toUpperCase()}</b> 模式</span><span>{stream.latencyMs} ms 延迟</span><span>{stream.timeoutMs / 1000}s 超时</span><span>{stream.autoMp4 ? '自动 MP4' : '手动 MP4'}</span></div>
         <div className="stream-card-foot"><StatusBadge status={active?.status || 'idle'} />{active ? <button className="button stop" disabled={isBusy} onClick={() => run(stream.id, () => api.stopRecording(active.id), '停止命令已发送')}><Square />停止录制</button> : <button className="button primary compact" disabled={isBusy} onClick={() => run(stream.id, () => api.startRecording(stream.id), '录制任务已创建')}>{isBusy ? <span className="spinner" /> : <Play />}开始录制</button>}</div>
       </article> })}
       {!data.streams.length && <div className="panel full"><EmptyState icon={<Radio />} title="添加第一路 SRT 输入" text="Listener 会在指定 UDP 端口等待推流，Caller 会主动连接上游。" action={<button className="button primary" onClick={() => setEditing('new')}><Plus />添加流</button>} /></div>}
     </div>
     {editing && <StreamModal stream={editing === 'new' ? undefined : editing} defaultPort={nextPort} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); notify('success', editing === 'new' ? '流已添加' : '流配置已更新'); await refresh() }} />}
+    {diagnosis && <StreamDiagnosisModal diagnosis={diagnosis} onClose={() => setDiagnosis(null)} />}
     {confirmDelete && <ConfirmModal title="删除流配置" text={`确定删除“${confirmDelete.name}”吗？已有录制文件不会被删除。`} confirmText="删除流" danger onClose={() => setConfirmDelete(null)} onConfirm={async () => { await run(confirmDelete.id, () => api.deleteStream(confirmDelete.id), '流配置已删除'); setConfirmDelete(null) }} />}
   </>
 }
 
 function StreamModal({ stream, defaultPort, onClose, onSaved }: { stream?: Stream; defaultPort: number; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState<StreamForm>(stream ? { name: stream.name, mode: stream.mode, host: stream.host, port: stream.port, streamId: stream.streamId, latencyMs: stream.latencyMs, timeoutMs: stream.timeoutMs, passphrase: '', clearPassphrase: false, autoMp4: stream.autoMp4 } : { ...emptyStream, port: defaultPort })
+  const [form, setForm] = useState<StreamForm>(stream ? { name: stream.name, mode: stream.mode, host: stream.host, port: stream.port, streamId: stream.streamId, latencyMs: stream.latencyMs, timeoutMs: stream.timeoutMs, passphrase: '', clearPassphrase: false, autoMp4: stream.autoMp4, sourceUrl: stream.mode === 'caller' ? displaySRTURL(stream) : '' } : { ...emptyStream, port: defaultPort })
+  const [sourceTouched, setSourceTouched] = useState(false)
   const [advanced, setAdvanced] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('')
-  const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { stream ? await api.updateStream(stream.id, form) : await api.createStream(form); onSaved() } catch (e) { setError(messageOf(e)) } finally { setBusy(false) } }
-  const set = <K extends keyof StreamForm>(key: K, value: StreamForm[K]) => setForm(current => ({ ...current, [key]: value }))
-  const setSourceUrl = (value: string) => setForm(current => ({ ...current, ...parseSRTURL(value, current), sourceUrl: value }))
+  const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(''); const payload = sourceTouched ? form : { ...form, sourceUrl: '' }; try { stream ? await api.updateStream(stream.id, payload) : await api.createStream(payload); onSaved() } catch (e) { setError(messageOf(e)) } finally { setBusy(false) } }
+  const set = <K extends keyof StreamForm>(key: K, value: StreamForm[K]) => { const clearsURL = ['mode', 'host', 'port', 'streamId'].includes(String(key)); if (clearsURL) setSourceTouched(false); setForm(current => ({ ...current, [key]: value, sourceUrl: clearsURL ? '' : current.sourceUrl })) }
+  const setSourceUrl = (value: string) => { setSourceTouched(!!value.trim()); setForm(current => ({ ...current, ...parseSRTURL(value, current), sourceUrl: value })) }
   return <Modal onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="modal-head"><div><span className="eyebrow">SRT CHANNEL</span><h2>{stream ? '编辑输入通道' : '添加输入通道'}</h2></div><button type="button" className="icon-button" onClick={onClose}><X /></button></div>
-    {!stream && <label>完整 SRT URL<input value={form.sourceUrl || ''} onChange={e => setSourceUrl(e.target.value)} placeholder="例如：srt://192.168.1.30:8890?streamid=read:27srt-h1" /><small>粘贴转发服务地址后会自动识别为 Caller，并提取 Stream ID 和通道名称。</small></label>}
+    <label>完整 SRT URL<input value={form.sourceUrl || ''} onChange={e => setSourceUrl(e.target.value)} placeholder="例如：srt://192.168.1.30:8890?streamid=read:27srt-h1" /><small>粘贴转发服务地址后会自动识别为 Caller，并提取 Stream ID 和通道名称；手动修改主机、端口或 Stream ID 时会以分项参数为准。</small></label>
     <label>通道名称<input autoFocus value={form.name} onChange={e => set('name', e.target.value)} placeholder="例如：演播室主输出" /></label>
     <div className="segmented"><button type="button" className={form.mode === 'listener' ? 'active' : ''} onClick={() => set('mode', 'listener')}>Listener 接收推流</button><button type="button" className={form.mode === 'caller' ? 'active' : ''} onClick={() => set('mode', 'caller')}>Caller 连接上游</button></div>
     <div className="form-grid">{form.mode === 'caller' && <label className="span-two">上游主机<input value={form.host} onChange={e => set('host', e.target.value)} placeholder="192.168.1.30 或域名" /></label>}<label>{form.mode === 'listener' ? '监听 UDP 端口' : '上游端口'}<input type="number" value={form.port} onChange={e => set('port', Number(e.target.value))} min={form.mode === 'listener' ? 9000 : 1} max={form.mode === 'listener' ? 9099 : 65535} /></label><label>录制结束后<input className="hidden-input" /><span className="switch-row">自动生成 MP4 <button type="button" className={`switch ${form.autoMp4 ? 'on' : ''}`} onClick={() => set('autoMp4', !form.autoMp4)}><span /></button></span></label></div>
@@ -229,6 +233,24 @@ function StreamModal({ stream, defaultPort, onClose, onSaved }: { stream?: Strea
     {advanced && <div className="advanced-panel"><div className="form-grid"><label>延迟（毫秒）<input type="number" value={form.latencyMs} min={20} max={8000} onChange={e => set('latencyMs', Number(e.target.value))} /></label><label>无数据超时（毫秒）<input type="number" value={form.timeoutMs} min={5000} max={300000} step={1000} onChange={e => set('timeoutMs', Number(e.target.value))} /></label><label className="span-two">Stream ID<input value={form.streamId} onChange={e => set('streamId', e.target.value)} placeholder="可选" /></label><label className="span-two">SRT 加密口令<input type="password" value={form.passphrase} onChange={e => set('passphrase', e.target.value)} placeholder={stream?.hasPassphrase ? '已设置；留空表示保持不变' : '可选，10–79个字符'} /></label>{stream?.hasPassphrase && <label className="checkbox span-two"><input type="checkbox" checked={form.clearPassphrase} onChange={e => set('clearPassphrase', e.target.checked)} />清除已有加密口令</label>}</div></div>}
     {error && <div className="form-error"><AlertTriangle size={16} />{error}</div>}<div className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>取消</button><button className="button primary" disabled={busy}>{busy ? <span className="spinner" /> : <Save />}{stream ? '保存配置' : '创建通道'}</button></div>
   </form></Modal>
+}
+
+function StreamDiagnosisModal({ diagnosis, onClose }: { diagnosis: { stream: Stream; result?: StreamDiagnosis; error?: string }; onClose: () => void }) {
+  const result = diagnosis.result
+  const videos = result?.streams?.video || []
+  const audios = result?.streams?.audio || []
+  return <Modal onClose={onClose}><div className="preview-modal">
+    <div className="modal-head"><div><span className="eyebrow">SRT DIAGNOSTIC</span><h2>{diagnosis.stream.name}</h2></div><button className="icon-button" onClick={onClose}><X /></button></div>
+    {!result && !diagnosis.error && <div className="diagnostic-note"><Activity /><div><strong>正在探测输入</strong><p>系统会用当前通道参数连接上游，最多等待 12 秒，看看是否能拿到媒体流。</p></div></div>}
+    {diagnosis.error && <div className="error-box"><AlertTriangle /><div><strong>诊断请求失败</strong><p>{diagnosis.error}</p></div></div>}
+    {result && <div className="diagnostic-result">
+      <div className={`diagnostic-banner ${result.ok ? 'ok' : 'fail'}`}>{result.ok ? <CheckCircle2 /> : <AlertTriangle />}<div><strong>{result.ok ? '已探测到媒体流' : '未收到可识别媒体'}</strong><p>{result.hint}</p></div></div>
+      <div className="detail-grid"><Detail label="实际探测 URL" value={result.url} mono /><Detail label="耗时" value={`${result.durationMs} ms`} mono /></div>
+      {result.error && <pre className="diagnostic-error">{result.error}</pre>}
+      {videos.length > 0 && <section className="detail-section"><h3>视频</h3>{videos.map((video, index) => <div className="codec-card" key={index}><Film /><div><strong>{(video.codec || 'unknown').toUpperCase()} · {video.profile || 'Unknown profile'}</strong><span>{video.width || '—'} × {video.height || '—'}</span></div></div>)}</section>}
+      {audios.length > 0 && <section className="detail-section"><h3>音轨 <span>{audios.length}</span></h3>{audios.map((audio, index) => <div className="audio-row" key={index}><span>A{index + 1}</span><div><strong>{(audio.codec || 'unknown').toUpperCase()}</strong><small>{audio.channels || '—'} 声道 · {audio.sampleRate || '—'} Hz {audio.language ? `· ${audio.language}` : ''}</small></div></div>)}</section>}
+    </div>}
+  </div></Modal>
 }
 
 function RecordingsPage({ data, refresh, notify }: PageProps) {
@@ -302,6 +324,7 @@ function endpointHint(stream:Stream,state:string,signal:string){
 }
 function signalHealth(stream:Stream,active:Recording|undefined,latest:Recording|undefined,serverTime:string):'locked'|'stalled'|'waiting'|'lost'|'idle'|'finalizing'{if(!active)return latest?.status==='failed'?'lost':'idle';if(active.status==='waiting_input')return 'waiting';if(active.status==='finalizing')return 'finalizing';if(active.status!=='recording')return 'idle';if(!active.lastProgressAt||active.progressSize<=0)return 'stalled';const age=new Date(serverTime).getTime()-new Date(active.lastProgressAt).getTime();const warningAfter=Math.max(5000,Math.min(stream.timeoutMs/3,10000));return age>warningAfter?'stalled':'locked'}
 function signalTitle(recording:Recording|undefined,serverTime:string){if(!recording?.lastProgressAt)return '尚未收到有效媒体进度';const age=Math.max(0,new Date(serverTime).getTime()-new Date(recording.lastProgressAt).getTime());return `最后媒体进度：${Math.round(age/1000)} 秒前`}
+function displaySRTURL(stream:Stream){if(stream.mode==='listener')return `srt://0.0.0.0:${stream.port}`;return `srt://${stream.host}:${stream.port}${stream.streamId?`?streamid=${stream.streamId}`:''}`}
 function parseSRTURL(value:string,current:StreamForm):Partial<StreamForm>{
   const raw=value.trim()
   if(!raw)return {}

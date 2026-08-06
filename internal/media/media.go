@@ -122,7 +122,17 @@ func BuildSRTURL(stream app.StreamSecret, passphrase string) (string, error) {
 	if host == "" {
 		return "", errors.New("SRT host is empty")
 	}
-	return (&url.URL{Scheme: "srt", Host: net.JoinHostPort(host, strconv.Itoa(stream.Port)), RawQuery: values.Encode()}).String(), nil
+	return (&url.URL{Scheme: "srt", Host: net.JoinHostPort(host, strconv.Itoa(stream.Port)), RawQuery: encodeSRTQuery(values, stream.StreamID)}).String(), nil
+}
+
+func encodeSRTQuery(values url.Values, streamID string) string {
+	query := values.Encode()
+	if streamID == "" {
+		return query
+	}
+	encoded := url.QueryEscape(streamID)
+	relaxed := strings.ReplaceAll(encoded, "%3A", ":")
+	return strings.Replace(query, "streamid="+encoded, "streamid="+relaxed, 1)
 }
 
 func RedactSRTURL(raw string) string {
