@@ -9,6 +9,8 @@ COPY 产品logo.png ./public/logo.png
 RUN npm run build
 
 FROM golang:1.24-bookworm AS go-build
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
 WORKDIR /src
 COPY go.mod go.sum* ./
 RUN go mod download
