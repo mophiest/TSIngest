@@ -38,17 +38,29 @@ fi
 
 if [ -z "$TSINGEST_IMAGE" ]; then
   TSINGEST_IMAGE="ghcr.io/mophiest/tsingest:${APP_VERSION}"
-fi
-
-if grep -q '^TSINGEST_IMAGE=' "$ENV_FILE"; then
-  tmp_file="${ENV_FILE}.tmp.$$"
-  sed "s|^TSINGEST_IMAGE=.*|TSINGEST_IMAGE=${TSINGEST_IMAGE}|" "$ENV_FILE" > "$tmp_file"
-  mv "$tmp_file" "$ENV_FILE"
 else
-  printf '\nTSINGEST_IMAGE=%s\n' "$TSINGEST_IMAGE" >> "$ENV_FILE"
+  image_tag="${TSINGEST_IMAGE##*:}"
+  if [ -n "$image_tag" ] && [ "$image_tag" != "$TSINGEST_IMAGE" ] && [ "$image_tag" != "latest" ]; then
+    APP_VERSION="$image_tag"
+  fi
 fi
 
-echo "Deploying ${TSINGEST_IMAGE}"
+set_env_value() {
+  key="$1"
+  value="$2"
+  if grep -q "^${key}=" "$ENV_FILE"; then
+    tmp_file="${ENV_FILE}.tmp.$$"
+    sed "s|^${key}=.*|${key}=${value}|" "$ENV_FILE" > "$tmp_file"
+    mv "$tmp_file" "$ENV_FILE"
+  else
+    printf '\n%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+  fi
+}
+
+set_env_value TSINGEST_IMAGE "$TSINGEST_IMAGE"
+set_env_value APP_VERSION "$APP_VERSION"
+
+echo "Deploying ${TSINGEST_IMAGE} (app version ${APP_VERSION})"
 docker compose pull postgres web worker
 docker compose up -d --no-build --force-recreate web worker
 docker compose ps

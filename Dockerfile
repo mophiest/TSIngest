@@ -9,6 +9,7 @@ COPY 产品logo.png ./public/logo.png
 RUN npm run build
 
 FROM golang:1.24-bookworm AS go-build
+ARG APP_VERSION=0.1.0
 ARG GOPROXY=https://proxy.golang.org,direct
 ENV GOPROXY=${GOPROXY}
 WORKDIR /src
@@ -17,7 +18,7 @@ RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 COPY --from=web-build /src/web/dist ./internal/ui/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/tsingest ./cmd/tsingest
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X tsingest/internal/worker.Version=${APP_VERSION}" -o /out/tsingest ./cmd/tsingest
 
 FROM debian:bookworm-slim
 ARG APP_VERSION=0.1.0
