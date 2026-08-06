@@ -36,6 +36,28 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
+env_value() {
+  key="$1"
+  fallback="${2:-}"
+  value="$(awk -v key="$key" '
+    $0 ~ "^[[:space:]]*#" { next }
+    index($0, key "=") == 1 {
+      sub("^[^=]*=", "")
+      print
+      found=1
+      exit
+    }
+    END {
+      if (!found) exit 1
+    }
+  ' "$ENV_FILE" 2>/dev/null || true)"
+  if [ -n "$value" ]; then
+    printf '%s' "$value"
+  else
+    printf '%s' "$fallback"
+  fi
+}
+
 if [ -z "$TSINGEST_IMAGE" ]; then
   TSINGEST_IMAGE="ghcr.io/mophiest/tsingest:${APP_VERSION}"
 else
@@ -59,6 +81,18 @@ set_env_value() {
 
 set_env_value TSINGEST_IMAGE "$TSINGEST_IMAGE"
 set_env_value APP_VERSION "$APP_VERSION"
+
+RECORDINGS_PATH="$(env_value RECORDINGS_PATH /data/tsingest/recordings)"
+if [ -z "$RECORDINGS_PATH" ] || [ "$RECORDINGS_PATH" = "/" ]; then
+  echo "RECORDINGS_PATH is unsafe: ${RECORDINGS_PATH}" >&2
+  exit 1
+fi
+
+echo "Preparing recordings directory ${RECORDINGS_PATH}"
+mkdir -p "$RECORDINGS_PATH"
+if command -v chown >/dev/null 2>&1; then
+  chown -R 10001:10001 "$RECORDINGS_PATH" 2>/dev/null || echo "Warning: could not chown ${RECORDINGS_PATH}; run as root or execute: sudo chown -R 10001:10001 '${RECORDINGS_PATH}'" >&2
+fi
 
 echo "Deploying ${TSINGEST_IMAGE} (app version ${APP_VERSION})"
 docker compose pull postgres web worker

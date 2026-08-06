@@ -120,6 +120,7 @@ function Login({ onLogin }: { onLogin: (user: {id: string; username: string}) =>
 function DashboardPage({ data, setView, refresh, notify }: { data: Dashboard; setView: (view: View) => void; refresh: () => Promise<void>; notify: PageProps['notify'] }) {
   const [filter, setFilter] = useState<'all' | 'recording' | 'waiting' | 'alert'>('all')
   const [busy, setBusy] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const worker = data.workers[0]
   const diskUsed = worker?.diskTotalBytes ? Math.max(0, 100 - worker.diskFreeBytes * 100 / worker.diskTotalBytes) : 0
   const diskGuard = diskGuardLevel(worker, data.settings)
@@ -138,6 +139,35 @@ function DashboardPage({ data, setView, refresh, notify }: { data: Dashboard; se
     catch (error) { notify('error', messageOf(error)) }
     finally { setBusy('') }
   }
+  const visibleIDs = rows.map(row => row.stream.id)
+  const selectedRows = rows.filter(row => selected.has(row.stream.id))
+  const startableRows = selectedRows.filter(row => !row.active)
+  const stoppableRows = selectedRows.filter(row => row.active && ['waiting_input', 'recording'].includes(row.active.status))
+  const allVisibleSelected = visibleIDs.length > 0 && visibleIDs.every(id => selected.has(id))
+  const toggleSelected = (id: string, checked: boolean) => setSelected(current => { const next = new Set(current); checked ? next.add(id) : next.delete(id); return next })
+  const toggleAllVisible = (checked: boolean) => setSelected(current => { const next = new Set(current); visibleIDs.forEach(id => checked ? next.add(id) : next.delete(id)); return next })
+  const batchStart = async () => {
+    if (!startableRows.length) return
+    setBusy('batch-start')
+    const results = await Promise.allSettled(startableRows.map(row => api.startRecording(row.stream.id)))
+    const ok = results.filter(result => result.status === 'fulfilled').length
+    const failed = results.length - ok
+    notify(failed ? 'error' : 'success', failed ? `已发送 ${ok} 路开始命令，${failed} 路失败` : `已发送 ${ok} 路开始命令`)
+    setSelected(new Set())
+    await refresh().catch(error => notify('error', messageOf(error)))
+    setBusy('')
+  }
+  const batchStop = async () => {
+    if (!stoppableRows.length) return
+    setBusy('batch-stop')
+    const results = await Promise.allSettled(stoppableRows.map(row => api.stopRecording(row.active!.id)))
+    const ok = results.filter(result => result.status === 'fulfilled').length
+    const failed = results.length - ok
+    notify(failed ? 'error' : 'success', failed ? `已发送 ${ok} 路停止命令，${failed} 路失败` : `已发送 ${ok} 路停止命令`)
+    setSelected(new Set())
+    await refresh().catch(error => notify('error', messageOf(error)))
+    setBusy('')
+  }
   const queue = data.recordings.filter(recording => recording.mp4Job).slice(0, 3)
   const events = buildEvents(data)
   return <div className="ops-layout">
@@ -145,6 +175,7 @@ function DashboardPage({ data, setView, refresh, notify }: { data: Dashboard; se
       <header className="ops-section-head">
         <div className="ops-title"><h2>通道监看</h2><span className="count">{recordingCount}</span><small>正在写入 / {data.activeCount} 个活动任务 / 共 {data.streams.length} 路</small></div>
         <div className="ops-tools">
+          {selectedRows.length > 0 && <div className="batch-actions"><span>已选 {selectedRows.length} 路</span><button className="text-button" disabled={!startableRows.length || busy.startsWith('batch')} onClick={batchStart}>批量开始 {startableRows.length || ''}</button><button className="text-button danger-text" disabled={!stoppableRows.length || busy.startsWith('batch')} onClick={batchStop}>批量停止 {stoppableRows.length || ''}</button></div>}
           <label className="ops-filter"><Filter /><select aria-label="通道状态" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option value="all">全部通道</option><option value="recording">正在收录</option><option value="waiting">等待输入</option><option value="alert">异常通道</option></select></label>
           <button className="tool-button" title="列设置"><Columns3 /></button>
           <button className="text-button" onClick={() => setView('streams')}>管理通道</button>
@@ -152,11 +183,12 @@ function DashboardPage({ data, setView, refresh, notify }: { data: Dashboard; se
       </header>
       <div className="ops-table-wrap">
         <table className="ops-table">
-          <thead><tr><th>通道名称</th><th>端点信息</th><th>信号状态</th><th>录制状态</th><th>运行时间 (TC)</th><th>码率</th><th>文件大小</th><th>音频轨</th><th>操作</th></tr></thead>
+          <thead><tr><th className="select-col"><input type="checkbox" checked={allVisibleSelected} onChange={event => toggleAllVisible(event.target.checked)} aria-label="选择当前通道" /></th><th>通道名称</th><th>端点信息</th><th>信号状态</th><th>录制状态</th><th>运行时间 (TC)</th><th>码率</th><th>文件大小</th><th>音频轨</th><th>操作</th></tr></thead>
           <tbody>{rows.map(({stream, active, latest, state, signal, displayStatus, index}) => {
             const recording = active || latest
             const waiting = state === 'waiting_input'
             return <tr key={stream.id} className={state === 'failed' ? 'alert-row' : ''}>
+              <td className="select-col"><input type="checkbox" checked={selected.has(stream.id)} onChange={event => toggleSelected(stream.id, event.target.checked)} aria-label={`选择 ${stream.name}`} /></td>
               <td><div className="channel-name"><span className="channel-no">{String(index + 1).padStart(2, '0')}</span><div><strong>{stream.name}</strong><small className="mono">{stream.streamId || shortId(stream.id)}</small></div></div></td>
               <td><div className="endpoint-cell"><span>{stream.mode === 'listener' ? 'Listener' : 'Caller'}</span><strong className="mono">{stream.mode === 'listener' ? `0.0.0.0:${stream.port}` : `${stream.host}:${stream.port}`}</strong><small>{endpointHint(stream, state, signal)}</small></div></td>
               <td><span className={`signal-state ${signal}`} title={signalTitle(recording, data.serverTime)}>{signal === 'locked' ? <Wifi /> : signal === 'stalled' ? <AlertTriangle /> : <WifiOff />}{signal === 'locked' ? '媒体正常' : signal === 'stalled' ? '进度停滞' : state === 'failed' ? '信号中断' : state === 'finalizing' ? '已停止输入' : waiting ? '等待信号' : '未连接'}</span></td>
@@ -165,7 +197,7 @@ function DashboardPage({ data, setView, refresh, notify }: { data: Dashboard; se
               <td className="telemetry mono">{recording?.progressBitrate || '0 bps'}</td>
               <td className="telemetry mono">{formatBytes(recording?.progressSize || (recording ? fileOf(recording, 'ts')?.sizeBytes : 0) || 0)}</td>
               <td className="track-count">{audioCount(recording)}</td>
-              <td>{active ? <button className="row-action stop" disabled={busy === stream.id} onClick={() => run(stream.id, () => api.stopRecording(active.id), '停止命令已发送')}><Square />停止录制</button> : <button className="row-action start" disabled={busy === stream.id} onClick={() => run(stream.id, () => api.startRecording(stream.id), '录制任务已创建')}><Play />开始录制</button>}</td>
+              <td>{active ? <button className="row-action stop" disabled={busy === stream.id || busy.startsWith('batch')} onClick={() => run(stream.id, () => api.stopRecording(active.id), '停止命令已发送')}><Square />停止录制</button> : <button className="row-action start" disabled={busy === stream.id || busy.startsWith('batch')} onClick={() => run(stream.id, () => api.startRecording(stream.id), '录制任务已创建')}><Play />开始录制</button>}</td>
             </tr>
           })}</tbody>
         </table>
@@ -282,7 +314,7 @@ function SettingsPage({ data, refresh, notify }: PageProps) {
   useEffect(()=>setSettings(data.settings),[data.settings])
   const save=async()=>{setBusy(true);try{await api.saveSettings(settings);notify('success','系统设置已保存');await refresh()}catch(e){notify('error',messageOf(e))}finally{setBusy(false)}}
   const changePassword=async(event:FormEvent)=>{event.preventDefault();if(next!==confirm){notify('error','两次输入的新密码不一致');return}setBusy(true);try{await api.changePassword(current,next);notify('success','密码已修改，请重新登录');location.reload()}catch(e){notify('error',messageOf(e))}finally{setBusy(false)}}
-  return <><section className="page-heading"><div><h2>系统设置</h2><p>调整转封装资源、磁盘保护水位并查看运行诊断。</p></div></section><div className="settings-grid"><section className="panel"><PanelHeader title="转封装与磁盘保护" subtitle="Worker 每15秒同步一次" /><div className="settings-form"><label>MP4 最大并发<input type="number" min={1} max={8} value={settings.mp4Concurrency} onChange={e=>setSettings({...settings,mp4Concurrency:Number(e.target.value)})}/><small>建议本地机械盘使用 1–2，NVMe 可适当提高。</small></label><div className="settings-divider" /><h3>软水位 · 禁止新任务</h3><div className="form-grid"><label>剩余百分比<input type="number" value={settings.softFreePercent} onChange={e=>setSettings({...settings,softFreePercent:Number(e.target.value)})}/></label><label>剩余容量 GiB<input type="number" value={settings.softFreeGiB} onChange={e=>setSettings({...settings,softFreeGiB:Number(e.target.value)})}/></label></div><h3>硬水位 · 停止活动录制</h3><div className="form-grid"><label>剩余百分比<input type="number" value={settings.hardFreePercent} onChange={e=>setSettings({...settings,hardFreePercent:Number(e.target.value)})}/></label><label>剩余容量 GiB<input type="number" value={settings.hardFreeGiB} onChange={e=>setSettings({...settings,hardFreeGiB:Number(e.target.value)})}/></label></div><button className="button primary" onClick={save} disabled={busy}><Save />保存系统设置</button></div></section><section className="panel"><PanelHeader title="Worker 诊断" subtitle="录制执行节点" /><WorkerDetail worker={data.workers[0]} detailed /><div className="diagnostic-note"><ShieldCheck /><div><strong>数据保护已启用</strong><p>不自动删除旧录像。达到硬水位时会优雅停止所有活动录制。</p></div></div></section><section className="panel"><PanelHeader title="修改管理员密码" subtitle="修改后所有会话都会退出" /><form className="settings-form" onSubmit={changePassword}><label>当前密码<input type="password" value={current} onChange={e=>setCurrent(e.target.value)} autoComplete="current-password" /></label><label>新密码<input type="password" value={next} onChange={e=>setNext(e.target.value)} minLength={12} autoComplete="new-password" /><small>至少12个字符。</small></label><label>确认新密码<input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password" /></label><button className="button secondary" disabled={busy||!current||!next}><KeyRound />更新密码</button></form></section><section className="panel"><PanelHeader title="部署信息" subtitle="当前版本与接口" /><div className="detail-grid single"><Detail label="应用版本" value={data.workers[0]?.version || '—'} /><Detail label="录制根目录" value="/data/recordings" mono /><Detail label="SRT Listener范围" value="9000–9099 / UDP" /><Detail label="管理接口" value={location.origin} mono /></div></section></div></>
+  return <><section className="page-heading"><div><h2>系统设置</h2><p>调整转封装资源、磁盘保护水位并查看运行诊断。</p></div></section><div className="settings-grid"><section className="panel"><PanelHeader title="转封装与磁盘保护" subtitle="Worker 每15秒同步一次" /><div className="settings-form"><label>MP4 最大并发<input type="number" min={1} max={8} value={settings.mp4Concurrency} onChange={e=>setSettings({...settings,mp4Concurrency:Number(e.target.value)})}/><small>建议本地机械盘使用 1–2，NVMe 可适当提高。</small></label><div className="settings-divider" /><h3>软水位 · 禁止新任务</h3><div className="form-grid"><label>剩余百分比<input type="number" value={settings.softFreePercent} onChange={e=>setSettings({...settings,softFreePercent:Number(e.target.value)})}/></label><label>剩余容量 GiB<input type="number" value={settings.softFreeGiB} onChange={e=>setSettings({...settings,softFreeGiB:Number(e.target.value)})}/></label></div><h3>硬水位 · 停止活动录制</h3><div className="form-grid"><label>剩余百分比<input type="number" value={settings.hardFreePercent} onChange={e=>setSettings({...settings,hardFreePercent:Number(e.target.value)})}/></label><label>剩余容量 GiB<input type="number" value={settings.hardFreeGiB} onChange={e=>setSettings({...settings,hardFreeGiB:Number(e.target.value)})}/></label></div><button className="button primary" onClick={save} disabled={busy}><Save />保存系统设置</button></div></section><section className="panel"><PanelHeader title="Worker 诊断" subtitle="录制执行节点" /><WorkerDetail worker={data.workers[0]} detailed /><div className="diagnostic-note"><ShieldCheck /><div><strong>数据保护已启用</strong><p>不自动删除旧录像。达到硬水位时会优雅停止所有活动录制。</p></div></div></section><section className="panel"><PanelHeader title="修改管理员密码" subtitle="修改后所有会话都会退出" /><form className="settings-form" onSubmit={changePassword}><label>当前密码<input type="password" value={current} onChange={e=>setCurrent(e.target.value)} autoComplete="current-password" /></label><label>新密码<input type="password" value={next} onChange={e=>setNext(e.target.value)} minLength={12} autoComplete="new-password" /><small>至少12个字符。</small></label><label>确认新密码<input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password" /></label><button className="button secondary" disabled={busy||!current||!next}><KeyRound />更新密码</button></form></section><section className="panel"><PanelHeader title="部署信息" subtitle="当前版本与接口" /><div className="detail-grid single"><Detail label="应用版本" value={data.workers[0]?.version || '—'} /><Detail label="录制根目录" value={data.recordingsRoot || "/data/recordings"} mono /><Detail label="SRT Listener范围" value="9000–9099 / UDP" /><Detail label="管理接口" value={location.origin} mono /></div></section></div></>
 }
 
 function MetricCard({ title,value,detail,icon,tone }: {title:string;value:string|number;detail:string;icon:ReactNode;tone:string}) { return <article className={`metric-card ${tone}`}><div className="metric-icon">{icon}</div><div><span>{title}</span><strong>{value}</strong><small>{detail}</small></div></article> }

@@ -103,6 +103,7 @@ type DashboardSnapshot struct {
 	Recordings     []Recording       `json:"recordings"`
 	Workers        []WorkerHeartbeat `json:"workers"`
 	Settings       SystemSettings    `json:"settings"`
+	RecordingsRoot string            `json:"recordingsRoot"`
 	ServerTime     time.Time         `json:"serverTime"`
 	ActiveCount    int               `json:"activeCount"`
 	RecordingCount int               `json:"recordingCount"`

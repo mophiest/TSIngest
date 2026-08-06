@@ -96,6 +96,7 @@ export interface Dashboard {
   recordings: Recording[]
   workers: WorkerHeartbeat[]
   settings: Settings
+  recordingsRoot: string
   serverTime: string
   activeCount: number
   recordingCount: number

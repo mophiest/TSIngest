@@ -417,6 +417,7 @@ func (s *Server) deleteMediaFile(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) dashboardHandler(w http.ResponseWriter, r *http.Request) {
 	item, err := s.store.Dashboard(r.Context())
+	item.RecordingsRoot = s.cfg.RecordingsRoot
 	respond(w, item, err)
 }
 func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
