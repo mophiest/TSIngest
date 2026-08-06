@@ -460,12 +460,10 @@ func (r *Runner) finalizeRecording(id, partPath, reason, stderrText string, auto
 	if statErr == nil {
 		size = info.Size()
 	}
-	if err != nil || !probe.HasH264Video() || probe.DurationMS() <= 0 || size < 188 {
+	if err != nil || probe.DurationMS() <= 0 || size < 188 {
 		message := errorMessage(err, stderrText)
 		if err == nil {
 			switch {
-			case !probe.HasH264Video():
-				message = "TS中未检测到H.264视频"
 			case probe.DurationMS() <= 0:
 				message = "TS时长无效"
 			default:

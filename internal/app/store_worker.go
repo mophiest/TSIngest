@@ -115,7 +115,17 @@ func (s *Store) DeleteMediaFileRecord(ctx context.Context, recordingID, kind str
 }
 
 func (s *Store) ActiveRecordingsForRecovery(ctx context.Context) ([]struct{ ID, Path string }, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id,working_path FROM recordings WHERE status IN ('waiting_input','recording','finalizing')`)
+	rows, err := s.DB.QueryContext(ctx, `
+		SELECT id,working_path FROM recordings WHERE status IN ('waiting_input','recording','finalizing')
+		UNION ALL
+		SELECT r.id,r.working_path FROM recordings r
+		WHERE r.status='failed'
+		  AND r.error_text='TS中未检测到H.264视频'
+		  AND r.working_path<>''
+		  AND NOT EXISTS (
+		    SELECT 1 FROM media_files mf
+		    WHERE mf.recording_id=r.id AND mf.kind='ts' AND mf.status='ready'
+		  )`)
 	if err != nil {
 		return nil, err
 	}
