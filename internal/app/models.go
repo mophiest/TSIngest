@@ -9,18 +9,19 @@ type User struct {
 }
 
 type Stream struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	Mode          string    `json:"mode"`
-	Host          string    `json:"host"`
-	Port          int       `json:"port"`
-	StreamID      string    `json:"streamId"`
-	LatencyMS     int       `json:"latencyMs"`
-	TimeoutMS     int       `json:"timeoutMs"`
-	HasPassphrase bool      `json:"hasPassphrase"`
-	AutoMP4       bool      `json:"autoMp4"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	ID            string     `json:"id"`
+	Name          string     `json:"name"`
+	Mode          string     `json:"mode"`
+	Host          string     `json:"host"`
+	Port          int        `json:"port"`
+	StreamID      string     `json:"streamId"`
+	LatencyMS     int        `json:"latencyMs"`
+	TimeoutMS     int        `json:"timeoutMs"`
+	HasPassphrase bool       `json:"hasPassphrase"`
+	AutoMP4       bool       `json:"autoMp4"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
+	DeletedAt     *time.Time `json:"deletedAt,omitempty"`
 }
 
 type StreamSecret struct {

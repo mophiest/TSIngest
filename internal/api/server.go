@@ -64,6 +64,7 @@ func New(cfg app.Config, store *app.Store, log *slog.Logger) http.Handler {
 		protected.Route("/api/v1/recordings", func(rr chi.Router) {
 			rr.Get("/", s.listRecordings)
 			rr.Get("/{id}", s.getRecording)
+			rr.Delete("/{id}", s.deleteRecording)
 			rr.Post("/{id}/stop", s.stopRecording)
 			rr.Post("/{id}/mp4", s.generateMP4)
 			rr.Get("/{id}/files/{kind}", s.serveMediaFile)
@@ -308,6 +309,16 @@ func (s *Server) listRecordings(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getRecording(w http.ResponseWriter, r *http.Request) {
 	item, err := s.store.GetRecording(r.Context(), chi.URLParam(r, "id"))
 	respond(w, item, err)
+}
+func (s *Server) deleteRecording(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := s.store.HideFailedRecording(r.Context(), id); err != nil {
+		writeDBError(w, err)
+		return
+	}
+	u := currentUser(r)
+	s.store.Audit(r.Context(), u.ID, "recording.alert.clear", "recording", id, map[string]any{})
+	w.WriteHeader(204)
 }
 func (s *Server) generateMP4(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")

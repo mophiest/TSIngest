@@ -14,6 +14,7 @@ export interface Stream {
   autoMp4: boolean
   createdAt: string
   updatedAt: string
+  deletedAt?: string
 }
 
 export interface MediaFile {

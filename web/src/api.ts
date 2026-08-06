@@ -29,6 +29,7 @@ export const api = {
   deleteStream: (id: string) => request(`/api/v1/streams/${id}`, { method: 'DELETE' }),
   startRecording: (streamId: string) => request<Recording>(`/api/v1/streams/${streamId}/recordings`, { method: 'POST' }),
   stopRecording: (id: string) => request<Recording>(`/api/v1/recordings/${id}/stop`, { method: 'POST' }),
+  deleteRecording: (id: string) => request(`/api/v1/recordings/${id}`, { method: 'DELETE' }),
   generateMp4: (id: string) => request(`/api/v1/recordings/${id}/mp4`, { method: 'POST' }),
   deleteFile: (id: string, kind: 'ts' | 'mp4') => request(`/api/v1/recordings/${id}/files/${kind}?confirm=DELETE`, { method: 'DELETE' }),
   saveSettings: (settings: Settings) => request<Settings>('/api/v1/settings', { method: 'PUT', body: JSON.stringify(settings) }),
@@ -46,5 +47,5 @@ export interface StreamForm {
   passphrase: string
   clearPassphrase: boolean
   autoMp4: boolean
+  sourceUrl?: string
 }
-

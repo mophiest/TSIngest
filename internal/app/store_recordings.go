@@ -26,7 +26,7 @@ func (s *Store) StartRecording(ctx context.Context, streamID string, maxActive i
 	}
 	var streamName string
 	var autoMP4 bool
-	if err = tx.QueryRowContext(ctx, `SELECT name,auto_mp4 FROM streams WHERE id=$1 FOR SHARE`, streamID).Scan(&streamName, &autoMP4); err != nil {
+	if err = tx.QueryRowContext(ctx, `SELECT name,auto_mp4 FROM streams WHERE id=$1 AND deleted_at IS NULL FOR SHARE`, streamID).Scan(&streamName, &autoMP4); err != nil {
 		return Recording{}, err
 	}
 	var count int
@@ -146,7 +146,7 @@ func (s *Store) ListRecordings(ctx context.Context, streamID, status string, lim
 		limit = 50
 	}
 	args := []any{}
-	where := []string{"1=1"}
+	where := []string{"hidden_at IS NULL"}
 	if streamID != "" {
 		args = append(args, streamID)
 		where = append(where, fmt.Sprintf("stream_id=$%d", len(args)))
@@ -180,7 +180,7 @@ func (s *Store) ListRecordings(ctx context.Context, streamID, status string, lim
 }
 
 func (s *Store) GetRecording(ctx context.Context, id string) (Recording, error) {
-	row := s.DB.QueryRowContext(ctx, `SELECT id,stream_id,stream_name,auto_mp4,status,end_reason,requested_at,started_at,ended_at,progress_ms,progress_size,progress_bitrate,last_progress_at,error_text FROM recordings WHERE id=$1`, id)
+	row := s.DB.QueryRowContext(ctx, `SELECT id,stream_id,stream_name,auto_mp4,status,end_reason,requested_at,started_at,ended_at,progress_ms,progress_size,progress_bitrate,last_progress_at,error_text FROM recordings WHERE id=$1 AND hidden_at IS NULL`, id)
 	item, err := scanRecording(row)
 	if err != nil {
 		return Recording{}, err
@@ -189,6 +189,27 @@ func (s *Store) GetRecording(ctx context.Context, id string) (Recording, error) 
 		return Recording{}, err
 	}
 	return item, nil
+}
+
+func (s *Store) HideFailedRecording(ctx context.Context, id string) error {
+	var status string
+	if err := s.DB.QueryRowContext(ctx, `SELECT status FROM recordings WHERE id=$1 AND hidden_at IS NULL`, id).Scan(&status); err != nil {
+		return err
+	}
+	if status == "waiting_input" || status == "recording" || status == "finalizing" {
+		return errors.New("录制进行中，不能删除告警")
+	}
+	if status != "failed" {
+		return errors.New("只有异常录制记录可以作为告警清除")
+	}
+	result, err := s.DB.ExecContext(ctx, `UPDATE recordings SET hidden_at=now(),updated_at=now() WHERE id=$1 AND status='failed' AND hidden_at IS NULL`, id)
+	if err != nil {
+		return err
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 type rowScanner interface{ Scan(...any) error }

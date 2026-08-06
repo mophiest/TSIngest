@@ -116,7 +116,7 @@ func (s *Store) Dashboard(ctx context.Context) (DashboardSnapshot, error) {
 	_ = s.DB.QueryRowContext(ctx, `SELECT count(*) FROM recordings WHERE status IN ('waiting_input','recording','finalizing')`).Scan(&active)
 	_ = s.DB.QueryRowContext(ctx, `SELECT count(*) FROM recordings WHERE status='recording'`).Scan(&recording)
 	_ = s.DB.QueryRowContext(ctx, `SELECT count(*) FROM mp4_jobs WHERE status='queued'`).Scan(&queued)
-	_ = s.DB.QueryRowContext(ctx, `SELECT count(*) FROM recordings WHERE status='failed' AND updated_at>now()-interval '24 hours'`).Scan(&failed)
+	_ = s.DB.QueryRowContext(ctx, `SELECT count(*) FROM recordings WHERE status='failed' AND hidden_at IS NULL AND updated_at>now()-interval '24 hours'`).Scan(&failed)
 	return DashboardSnapshot{Streams: streams, Recordings: recordings, Workers: workers, Settings: settings, ServerTime: time.Now().UTC(), ActiveCount: active, RecordingCount: recording, QueuedMP4: queued, FailedLast24h: failed}, nil
 }
 
