@@ -21,7 +21,7 @@ import (
 	"tsingest/internal/media"
 )
 
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 type Runner struct {
 	cfg   app.Config
