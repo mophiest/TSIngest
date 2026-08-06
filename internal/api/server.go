@@ -312,12 +312,12 @@ func (s *Server) getRecording(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) deleteRecording(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	if err := s.store.HideFailedRecording(r.Context(), id); err != nil {
+	if err := s.store.HideRecordingRecord(r.Context(), id); err != nil {
 		writeDBError(w, err)
 		return
 	}
 	u := currentUser(r)
-	s.store.Audit(r.Context(), u.ID, "recording.alert.clear", "recording", id, map[string]any{})
+	s.store.Audit(r.Context(), u.ID, "recording.clear", "recording", id, map[string]any{})
 	w.WriteHeader(204)
 }
 func (s *Server) generateMP4(w http.ResponseWriter, r *http.Request) {

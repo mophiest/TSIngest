@@ -191,18 +191,31 @@ func (s *Store) GetRecording(ctx context.Context, id string) (Recording, error) 
 	return item, nil
 }
 
-func (s *Store) HideFailedRecording(ctx context.Context, id string) error {
+func (s *Store) HideRecordingRecord(ctx context.Context, id string) error {
 	var status string
 	if err := s.DB.QueryRowContext(ctx, `SELECT status FROM recordings WHERE id=$1 AND hidden_at IS NULL`, id).Scan(&status); err != nil {
 		return err
 	}
 	if status == "waiting_input" || status == "recording" || status == "finalizing" {
-		return errors.New("录制进行中，不能删除告警")
+		return errors.New("录制进行中，不能删除记录")
 	}
-	if status != "failed" {
-		return errors.New("只有异常录制记录可以作为告警清除")
+	var files int
+	if err := s.DB.QueryRowContext(ctx, `SELECT count(*) FROM media_files WHERE recording_id=$1 AND status<>'deleted'`, id).Scan(&files); err != nil {
+		return err
 	}
-	result, err := s.DB.ExecContext(ctx, `UPDATE recordings SET hidden_at=now(),updated_at=now() WHERE id=$1 AND status='failed' AND hidden_at IS NULL`, id)
+	if status != "failed" && files > 0 {
+		return errors.New("该录制已有媒体文件，请先删除文件")
+	}
+	if status != "failed" && files == 0 {
+		var activeJobs int
+		if err := s.DB.QueryRowContext(ctx, `SELECT count(*) FROM mp4_jobs WHERE recording_id=$1 AND status IN ('queued','running')`, id).Scan(&activeJobs); err != nil {
+			return err
+		}
+		if activeJobs > 0 {
+			return errors.New("MP4任务处理中，不能删除记录")
+		}
+	}
+	result, err := s.DB.ExecContext(ctx, `UPDATE recordings SET hidden_at=now(),updated_at=now() WHERE id=$1 AND hidden_at IS NULL`, id)
 	if err != nil {
 		return err
 	}
