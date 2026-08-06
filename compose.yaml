@@ -36,6 +36,8 @@ services:
         DEBIAN_SECURITY_MIRROR: ${DEBIAN_SECURITY_MIRROR:-http://deb.debian.org/debian-security}
     image: ${TSINGEST_IMAGE:-tsingest:${APP_VERSION:-0.1.0}}
     restart: unless-stopped
+    security_opt:
+      - seccomp=${TSINGEST_SECCOMP_PROFILE:-unconfined}
     environment:
       <<: *app-env
       TSINGEST_ROLE: web
